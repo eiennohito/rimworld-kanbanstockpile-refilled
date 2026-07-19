@@ -8,7 +8,7 @@ using System.Reflection.Emit;
 using UnityEngine;
 using RimWorld;
 using HarmonyLib;
-using Multiplayer.API;
+//using Multiplayer.API;
 using Verse;
 using Verse.AI;
 
@@ -114,11 +114,11 @@ namespace KanbanStockpile
             }
 
             //Stack Refill Threshold Slider
-            tmp.srt = (int)Widgets.HorizontalSlider(new Rect(0f, rect.yMin + 10f, 150f, 15f),
+            tmp.srt = (int)Widgets.HorizontalSlider(new Rect(0f, rect.yMin + 5f, 150f, 20f),
                     ks.srt, 0f, 100f, false, stackRefillThresholdLabel, null, null, 5f);
 
             //Similar Stack Limit Slider
-            tmp.ssl = (int)Widgets.HorizontalSlider(new Rect(155, rect.yMin + 10f, 125f, 15f),
+            tmp.ssl = (int)Widgets.HorizontalSlider(new Rect(155, rect.yMin + 5f, 125f, 20f),
                     ks.ssl, 0f, 8f, false, similarStackLimitLabel, null, null, 1f);
 
             //Max Stack Size Box and Check
@@ -126,12 +126,17 @@ namespace KanbanStockpile
             Widgets.CheckboxLabeled(new Rect(0f, rect.yMax - 25f, 280f, 20f).LeftHalf(), "Stack Size", ref checkOn);
 			if (checkOn)
 			{
-				Widgets.TextFieldNumeric(
-					new Rect(0f, rect.yMax - 25f, 280f, 20f).RightHalf(),
+                if (tmp.mss == 0)
+                    tmp.mss = 1;
+                
+                mssBuffer = tmp.mss.ToString();
+
+                Widgets.TextFieldNumeric(
+                    new Rect(0f, rect.yMax - 25f, 280f, 20f).RightHalf(),
 					ref tmp.mss,
 					ref mssBuffer,
-					1f);
-			}
+					1);
+            }
 			else
 			{
 				tmp.mss = 0;
@@ -143,15 +148,15 @@ namespace KanbanStockpile
 
                 // Accept slider changes no faster than 4Hz (250ms) to prevent spamming multiplayer sync lag
                 // (only apply this debounce if multiplayer mod is loaded)
-                if (MP.enabled) {
-                    DateTime curTime = DateTime.Now;
-                    if( (curTime - lastUpdateTime).TotalMilliseconds < 250) {
-                        return;
-                    }
-                    lastUpdateTime = curTime;
-                }
+                //if (MP.enabled) {
+                //    DateTime curTime = DateTime.Now;
+                //    if( (curTime - lastUpdateTime).TotalMilliseconds < 250) {
+                //        return;
+                //    }
+                //    lastUpdateTime = curTime;
+                //}
 
-                //KSLog.Message("[KanbanStockpile] Changed Stack Refill Threshold for settings with haulDestination named: " + settings.owner.ToString());
+                KSLog.Message("[KanbanStockpile] Changed Stack Refill Threshold for settings with haulDestination named: " + settings.owner.ToString());
                 ks.srt = tmp.srt;
                 ks.ssl = tmp.ssl;
                 ks.mss = tmp.mss;
@@ -379,20 +384,20 @@ namespace KanbanStockpile
 
     //********************
     //Dialog_RenameZone Patches
-    [HarmonyPatch(typeof(Dialog_RenameZone), "SetName")]
-    static class Dialog_RenameZone_SetName_Patch
-    {
-        public static void Prefix(Zone ___zone, string name)
-        {
-            //private Zone zone;
-            string oldName = ___zone?.label ?? "N/A";
+    //[HarmonyPatch(typeof(Dialog_RenameZone), nameof(Dialog_RenameZone.OnRenamed))]
+    //static class Dialog_RenameZone_OnRename_Patch
+    //{
+    //    public static void Prefix(Zone ___zone, string name)
+    //    {
+    //        //private Zone zone;
+    //        string oldName = ___zone?.label ?? "N/A";
 
-            KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() oldName: " + oldName);
-            KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() newName: " + name);
-            if(oldName == "N/A") return;
+    //        KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() oldName: " + oldName);
+    //        KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() newName: " + name);
+    //        if(oldName == "N/A") return;
 
-            State.Set(name, State.Get(oldName));
-            State.Del(oldName);
-        }
-    }
+    //        State.Set(name, State.Get(oldName));
+    //        State.Del(oldName);
+    //    }
+    //}
 }

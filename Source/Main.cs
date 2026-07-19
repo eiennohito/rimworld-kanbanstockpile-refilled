@@ -22,7 +22,7 @@ namespace KanbanStockpile
 
         static KanbanStockpileLoader()
         {
-            var harmony = new Harmony("net.ubergarm.rimworld.mods.kanbanstockpile");
+            var harmony = new Harmony("net.endag.rimworld.mods.kanbanstockpile");
             harmony.PatchAll();
 
             if (ModLister.GetActiveModWithIdentifier("LWM.DeepStorage") != null) {
@@ -33,7 +33,9 @@ namespace KanbanStockpile
                 KSLog.Message("[KanbanStockpile] Did *NOT* detect LWM Deep Storage...");
             }
 
-            if (ModLister.GetActiveModWithIdentifier("Uuugggg.StockpileRanking") != null) {
+            if ((ModLister.GetActiveModWithIdentifier("Uuugggg.StockpileRanking") != null) ||
+                 (ModLister.GetActiveModWithIdentifier("memegoddess.stockpileranking") != null))
+            {
                 IsStockpileRankingLoaded = true;
                 Log.Message("[KanbanStockpile] Detected Uuugggg's StockpileRanking is loaded!");
             } else {
@@ -54,11 +56,11 @@ namespace KanbanStockpile
                 KSLog.Message("[KanbanStockpile] Did *NOT* detect Mehni or Mlie PickUpAndHaul...");
             }
 
-            if (MP.enabled) {
-                MP.RegisterSyncMethod(typeof(State), nameof(State.Set));
-                MP.RegisterSyncMethod(typeof(State), nameof(State.Del));
-                MP.RegisterSyncWorker<KanbanSettings>(State.SyncKanbanSettings, typeof(KanbanSettings), false, false);
-            }
+            //if (MP.enabled) {
+            //    MP.RegisterSyncMethod(typeof(State), nameof(State.Set));
+            //    MP.RegisterSyncMethod(typeof(State), nameof(State.Del));
+            //    MP.RegisterSyncWorker<KanbanSettings>(State.SyncKanbanSettings, typeof(KanbanSettings), false, false);
+            //}
         }
     }
 
@@ -216,7 +218,7 @@ namespace KanbanStockpile
             }
 
             if (map == null) return false;
-            if (dest == null) return false;
+            //if (dest == null) return false;
 
             slotGroup = dest.GetSlotGroup(map);
             if (slotGroup == null) return false;

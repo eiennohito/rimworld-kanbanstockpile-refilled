@@ -7,7 +7,7 @@ using System.Reflection.Emit;
 using UnityEngine;
 using RimWorld;
 using HarmonyLib;
-using Multiplayer.API;
+//using Multiplayer.API;
 using Verse;
 
 // Implement a static state storage database using Set/Get/Del/Exists kind of like redis
@@ -49,6 +49,7 @@ namespace KanbanStockpile
         //[SyncMethod]
         public static void Set(string label, KanbanSettings ks) {
             db[label] = ks;
+            KSLog.Message("[KanbanStockpile] Set: mss " + ks.mss.ToString());
         }
 
         //[SyncMethod]
@@ -59,11 +60,11 @@ namespace KanbanStockpile
         }
 
         //[SyncWorker(shouldConstruct = false)]
-        public static void SyncKanbanSettings(SyncWorker sync, ref KanbanSettings ks)
-        {
-            sync.Bind(ref ks.srt);
-            sync.Bind(ref ks.ssl);
-            sync.Bind(ref ks.mss);
-        }
+        //public static void SyncKanbanSettings(SyncWorker sync, ref KanbanSettings ks)
+        //{
+        //    sync.Bind(ref ks.srt);
+        //    sync.Bind(ref ks.ssl);
+        //    sync.Bind(ref ks.mss);
+        //}
     }
 }
