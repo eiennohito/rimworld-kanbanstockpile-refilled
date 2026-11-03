@@ -1,49 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><WorkspaceRoot Condition="'$(WorkspaceRoot)' == ''">$(MSBuildThisFileDirectory)../../..</WorkspaceRoot></PropertyGroup>
+  <Import Project="$(WorkspaceRoot)/tools/dotnet/RimWorld17.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{7A2AFCE7-5B32-4BBB-8BFC-3B1D0C80215D}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <RootNamespace>KanbanStockpile</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>KanbanStockpile</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <AllowedReferenceRelatedFileExtensions>None</AllowedReferenceRelatedFileExtensions>
-    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <EnableTargetingPackDownload>false</EnableTargetingPackDownload>
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(RIMWORLD_DIR)</RimWorldDir>
+    <HarmonyDir Condition="'$(HarmonyDir)' == ''">$(HARMONY_DIR)</HarmonyDir>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>..\1.6\Assemblies\</OutputPath>
-    <DefineConstants>DEBUG;</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <UseWinFormsOutOfProcDesigner>False</UseWinFormsOutOfProcDesigner>
-  </PropertyGroup>
-  <PropertyGroup>
-    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
-  </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="Main.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="State.cs" />
-    <Compile Include="Patches.cs" />
-    <Compile Include="Settings.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="0Harmony, Version=2.4.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>      
-    </Reference>
-    <Reference Include="0MultiplayerAPI" />
-    <Reference Include="Assembly-CSharp" />
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="UnityEngine.CoreModule" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="ValidateGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(RimWorldDir)/Assembly-CSharp.dll')" Text="Set RimWorldDir (or RIMWORLD_DIR) to the RimWorld 1.7 installation directory." />
+    <Error Condition="!Exists('$(HarmonyDir)/0Harmony.dll')" Text="Set HarmonyDir (or HARMONY_DIR) to Harmony's 1.7/Assemblies directory." />
+  </Target>
 </Project>

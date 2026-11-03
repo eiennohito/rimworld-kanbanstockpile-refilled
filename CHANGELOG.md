@@ -1,3 +1,20 @@
+## Unreleased
+
+- With Pick Up And Haul Reworked, pawns can bring several stacks to storage with limits in one trip.
+- Other haulers count those planned deliveries toward the storage limit, including after saving and loading.
+
+## 1.0.0 — Refill
+
+- RimWorld 1.7 and .NET 10 support.
+- Added Max similar, Refill Until and Refill From controls to the Storage tab.
+- Pawns continue refilling above the chosen threshold and skip small final top-ups.
+- Items already carried by Pick Up And Haul Reworked can be delivered to storage with limits.
+- Cached storage contents and reservations to reduce repeated searches.
+- Active hauls no longer reject their own reserved stack slot.
+- Existing KanbanStockpile settings carry over. A partial stack may refill once after loading before it waits for the chosen threshold again.
+
+# Upstream history
+
 ## v1.1.1
 - #21 Add Stack Size Limit merged from @Tmq5521's fork! All credit to Tmq5521 !!!
 

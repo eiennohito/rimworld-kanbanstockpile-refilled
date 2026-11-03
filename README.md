@@ -1,103 +1,62 @@
-Kanban Stockpile
-===
-RimWorld mod adding `Stack Refill Threshold` and `Similar Stack Limit` to
-stockpiles and deep storage inspired by kanban logistic control systems.
+# KanbanStockpile-Refilled
 
-## Features
-#### Stack Refill Threshold
-* Just like "pause when satisfied" for a bill—but for hauling to stockpile stacks!
-* Defaults to 100% which gives the same as behavior as vanilla.
+Set how many stacks of each item a stockpile or shelf holds, and when pawns
+refill them. With one stack per item, you can also set its size.
 
-*Example*: Set your RimFridge Important dining room stockpile to 20%
-and it won't trigger hauling jobs for any specific stack until there
-are less than or equal to 2 meals left in it (meal stack size is 10).
+Refilled continues [KanbanStockpile Continued by Endag](https://steamcommunity.com/sharedfiles/filedetails/?id=3767756434),
+based on the [original KanbanStockpile by ubergarm](https://steamcommunity.com/sharedfiles/filedetails/?id=2287142613).
+This version supports **RimWorld 1.7** and requires **Harmony**. Enable Refilled
+in place of either predecessor; their saved storage settings carry over.
 
-#### Similar Stack Limit
-* No more than `Similar Stack Limit` stacks of a thing are allowed in the stockpile.
-* Defaults to `OFF` which gives the same behavior as vanilla.
+[Refilled on Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3832323892)
 
-*Example*: Set your Medicine Cabinent Preferred hospital stockpile to a
-`Similar Stack Limit` of 1 and you will get no more than a single stack
-of any medicine and drug type now instead of clogging it up nothing but
-rotting herbal medicine and smoke leaf joints!
+## Storage controls
 
-#### Maximum Stack Size
-* Limit Stack Size for smaller custom sized stacks per stockpile
-* Defaults to `OFF` which gives the same behavior as vanilla.
+Select a stockpile or storage building and open its Storage tab.
 
-#### First Class Multiplayer Support
-* Data stored using determenistic dictionary keys and all state mutations properly sync'd!
-* All development done in a multiplayer context locally with arbiter to minimize potential desyncs.
-* Not tested for 1.4 yet...
+- **Max similar** sets the number of stacks allowed for each item. **Off** leaves
+  hauling to that storage unchanged.
+- With **Max similar = 1**, **Refill Until** sets the stack size. Leave it empty
+  for **Max Stack**, the item's usual maximum. It can lower that maximum, not
+  raise it.
+- **Refill From** sets how low a stack must get before pawns refill it.
+  **100%** allows normal top-ups. After refilling starts, pawns continue above
+  the threshold; they may skip a small final top-up.
 
-## Full Example
-Setup a raw ingredients food Preferred stockpile in the kitchen next to
-your stove. Set the `Stack Refill Threshold` to 0% and the `Similar Stack
-Limit` to 1. This way you will get a variety of fresh ingredients close
-to the cook and will reduce spoilage because the stack is not refilled
-until it has been completely used up.
+For example, set a steel stack to 60 and Refill From to 50%. Pawns start
+refilling at 30 steel or fewer. Deliveries already on their way count toward
+the limit.
 
-## Performance
-* Uses `for` loops similar to vanilla style code for basic `C#` optimization
-* Skips hot code paths anytime a stockpile is set to default values
-* Avoid using high values of `Similar Stack Limit` in large stockpiles as it must scan every thing in every cell
-* Turn off `Reserved Similar Stockpile Limiting` in Settings if you have an older CPU or large colony with many reserved hauling jobs to scan
+Click Refill Until to replace its value. Enter or clicking elsewhere saves it;
+Escape cancels. An empty field restores Max Stack. Scroll over a number to change
+it by one. The Max similar slider also accepts the mouse wheel and arrow keys.
 
-## Compatible Mods
-* [LWM's Deep Storage](https://steamcommunity.com/sharedfiles/filedetails/?id=1617282896) - Little White Mouse
-* [KV RimFridge](https://steamcommunity.com/sharedfiles/filedetails/?id=1180721235) - Kiame Vivacity / Vendan / et al
-* [Stockpile Ranking](https://steamcommunity.com/sharedfiles/filedetails/?id=1558464886) - Uuugggg (AlexTD)
-* [Simple Search Bar](https://steamcommunity.com/sharedfiles/filedetails/?id=1827546987) - Gguake
-* [Carry Capacity Fixed](https://steamcommunity.com/sharedfiles/filedetails/?id=1906760965) - Smash Phil / Dr Zhivago
-* [Ogre Stack](https://steamcommunity.com/sharedfiles/filedetails/?id=1447140290) - Ogre
-* [PickUpAndHaul](https://steamcommunity.com/sharedfiles/filedetails/?id=1279012058) - Mehni
+## Compatibility and limits
 
-Please comment below with results if you test this mod with your own favorite storage mods, thanks!
+Works with stockpiles, vanilla shelves and Adaptive Storage.
 
-## Credits
-Thanks to bananasss00 for contributing code from their github fork that I was unable to directly merge.
+With **Pick Up And Haul Reworked**, pawns can bring several stacks for limited
+storage in one trip, including food, hay and cloth. With original PUAH or Mlie's
+version, storage with limits uses ordinary hauling. Construction deliveries
+are unchanged.
 
-Thanks to [Tmq5521](https://github.com/ubergarm/RimWorld-KanbanStockpile/commit/831e4b3e0090ab2e0b5b23674fa61b95d876b519) fork for Maximum Stack Size feature!
+Multiplayer is not supported. After loading a save, a partly filled stack may
+refill once before it resumes waiting for the chosen threshold. RimWorld may
+warn about the changed mod list when replacing a predecessor.
 
-Original idea and inspiration came from my failed attempt to multiplayer patch Satisfied Storage.
-* [SatisfiedStorage](https://steamcommunity.com/sharedfiles/filedetails/?id=2003354028) - hoop
-* [Hauling Hysteresis](https://steamcommunity.com/sharedfiles/filedetails/?id=784324350) - Vendan
-* [Rimworld Search Agency](https://steamcommunity.com/sharedfiles/filedetails/?id=726479594) - Killface
+[Purpose and limits](PURPOSE.md)
 
-Inspiration for the `Similar Stack Limit` feature came directly from the great Variety Matters Stockpile.
-* [VarietyMattersStockpile](https://steamcommunity.com/workshop/filedetails/?id=2266068546) - Cozar
+## Screenshots
 
-I got most of the GUI hooks and all the Transpiler stuff from Uuugggg's (AlexTD) Stockpile Ranking.
-* [Stockpile Ranking](https://steamcommunity.com/sharedfiles/filedetails/?id=1558464886) - Uuugggg (AlexTD)
+![Off, one stack per item, and several stacks per item](Screenshots/01-storage-controls.png)
 
-This mod relies heavily on Harmony for ease of patching.
-* [Harmony](https://steamcommunity.com/workshop/filedetails/?id=2040656402) - pardeike
+[Size limit and threshold](Screenshots/02-single-stack.png) ·
+[Refill cycle](Screenshots/03-refill-cycle.png) ·
+[Mod options](Screenshots/04-mod-options.png)
 
-I hang out occasionally with some great folks over at the [Multiplayer Mod Discord](https://discord.gg/JCmNG4j).
-* [Multiplayer Mod](https://steamcommunity.com/sharedfiles/filedetails/?id=1752864297) - https://discord.gg/JCmNG4j
+## Credits and development
 
-## Mod Packs
-Subscribe to and like my multiplayer compatible configs and modpack
-* [Happy Accidents](https://steamcommunity.com/sharedfiles/filedetails/?id=2257918295)
+Original mod by ubergarm; continued by Endag, with contributions from Tmq5521
+and bananasss00. Refilled is maintained by eiennohito and uses the [MIT license](LICENSE).
 
-If you play Minecraft check out my magic themed sky island modpack
-* [Sky Magic Islands](https://www.curseforge.com/minecraft/modpacks/sky-magic-islands)
-
-Also, check out my `7 Days to Die` inspired Minecraft modpack:
-* [Rotten Economy](https://www.curseforge.com/minecraft/modpacks/rotten-economy)
-
-## References
-* [Steam Workshop KanbanStockpile](https://steamcommunity.com/sharedfiles/filedetails/?id=2287142613)
-* [github.com/ubergarm/RimWorld-KanbanStockpile](https://github.com/ubergarm/RimWorld-KanbanStockpile)
-* [github.com/ubergarm/monodevelop](https://github.com/ubergarm/monodevelop)
-* [Kanban](https://en.wikipedia.org/wiki/Kanban)
-
-## Keywords
-```
-#rimworld #rimworld 1.4 #rimworld mod #rimworld mods #rimworld mods 1.4
-#kanban #kanbanstockpile #kanban stockpile #kanbanstockpiles #storage settings
-#kanban stockpiles #kanbanstorage #kanban storage #SatisfiedStorage
-#VarietyMattersStockpile #rimworld search agency #hauling hysteresis
-#stockpile hyesteresis #rimworld stockpile #rimworld storage settings
-#transport kanban system #kanban logistics control #stockpile dupe limit
-```
+[Build and test instructions](BUILDING.md) · [Implementation notes](DESIGN.md)

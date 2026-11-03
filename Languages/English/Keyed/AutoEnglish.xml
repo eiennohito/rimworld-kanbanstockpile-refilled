@@ -1,12 +1,16 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
-    <KS.StackRefillThreshold>StackRefillThreshold {0}%</KS.StackRefillThreshold>
-    <KS.SimilarStackLimit>SimilarStackLimit {0}</KS.SimilarStackLimit>
-    <KS.SimilarStackLimitOff>SimilarStackLimit OFF</KS.SimilarStackLimitOff>
-    <KS.ReservedSimilarStackChecking>Reserved Similar Stack Checking</KS.ReservedSimilarStackChecking>
-    <KS.ReservedSimilarStackCheckingTip>If enabled, this scans reserved hauling jobs for similar stacks to reduce redundant hauling. If you have a slow CPU or a very large colony you may disable this to gain a little performance, but will then see overhauling. Default: Enabled.</KS.ReservedSimilarStackCheckingTip>
-    <KS.ConsiderDifferentMaterialSimilar>Consider Different Material Non-Stackables Similar</KS.ConsiderDifferentMaterialSimilar>
-    <KS.ConsiderDifferentMaterialSimilarTip>If enabled, this considers say bowler hats made from different material to be similar for the purpose of Similar Stack Limit. NOTE: This only applies to non-stackable items like apparel and weapons, so it does *not* apply to various stacks of different meat. Default: Enabled</KS.ConsiderDifferentMaterialSimilarTip>
-    <KS.PreventPickUpAndHaulOverHauling>Prevent PickUpAndHaul OverHauling</KS.PreventPickUpAndHaulOverHauling>
-    <KS.PreventPickUpAndHaulOverHaulingTip>If enabled and PUAH mod detected, all hauling jobs going to a stockpile with Similar Stack Limit enabled will fallback to vanilla HaulToStorage jobs to prevent overhauling. PUAH does not do reservations properly so this is the best solution for now and recommended enabled for best experience. NOTE: Restart required to pickup this config if changed. Default: Enabled</KS.PreventPickUpAndHaulOverHaulingTip>
+    <KS.ModName>KanbanStockpile-Refilled</KS.ModName>
+    <KS.MaxSimilar>Max similar: {0}</KS.MaxSimilar>
+    <KS.Off>Off</KS.Off>
+    <KS.MaxSimilarTip>Maximum stacks of the same item in this storage. Off keeps vanilla hauling behavior.</KS.MaxSimilarTip>
+    <KS.RefillUntil>Refill Until</KS.RefillUntil>
+    <KS.MaxStack>Max Stack</KS.MaxStack>
+    <KS.RefillUntilTip>Optional absolute limit per stack. Empty means each item's own maximum stack size. Scroll a number to adjust it by one.</KS.RefillUntilTip>
+    <KS.RefillFrom>Refill From: {0}%</KS.RefillFrom>
+    <KS.RefillFromTip>Start refilling at this percentage, then continue until nearly full. Small extra trips are skipped. 100% keeps normal top-ups.</KS.RefillFromTip>
+    <KS.ReservedSimilarStackChecking>Count incoming deliveries</KS.ReservedSimilarStackChecking>
+    <KS.ReservedSimilarStackCheckingTip>Count reserved hauling jobs toward the stack limit to avoid duplicate deliveries. Default: enabled.</KS.ReservedSimilarStackCheckingTip>
+    <KS.ConsiderDifferentMaterialSimilar>Group non-stackable items across materials</KS.ConsiderDifferentMaterialSimilar>
+    <KS.ConsiderDifferentMaterialSimilarTip>Count non-stackable items of the same type, such as hats made from different materials, toward one shared stack limit. Stackable items still use their normal stacking rules. Default: enabled.</KS.ConsiderDifferentMaterialSimilarTip>
 </LanguageData>

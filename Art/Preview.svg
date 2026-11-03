@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="640" height="360" viewBox="0 0 640 360">
+  <desc>Gameplay image from Features.png in ubergarm's KanbanStockpile, retained under the repository's MIT license. The old settings panel is covered by the new title.</desc>
+  <image xlink:href="Stockpile.png" width="640" height="360"/>
+  <rect width="230" height="360" fill="#242321"/>
+  <path d="M229 0V360" stroke="#100f0e" stroke-width="3"/>
+  <g fill="#ddd7c9" font-family="DejaVu Sans, sans-serif" font-weight="bold">
+    <text x="16" y="95" font-size="37">KANBAN</text>
+    <text x="16" y="136" font-size="31">STOCKPILE</text>
+  </g>
+  <g transform="rotate(-4 116 183)">
+    <rect x="13" y="156" width="207" height="58" fill="#d5c5a1" stroke="#aa9874" stroke-width="2"/>
+    <text x="27" y="195" font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="bold" fill="#29251e">- Refilled</text>
+  </g>
+</svg>

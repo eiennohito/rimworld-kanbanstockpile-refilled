@@ -1,403 +1,178 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Reflection;
 using System.Reflection.Emit;
-using UnityEngine;
-using RimWorld;
 using HarmonyLib;
-//using Multiplayer.API;
+using RimWorld;
 using Verse;
 using Verse.AI;
 
 namespace KanbanStockpile
 {
-    //********************
-    //ITab_Storage Patches
     [HarmonyPatch(typeof(ITab_Storage), "TopAreaHeight", MethodType.Getter)]
-    static class ITab_Storage_TopAreaHeight_Patch
+    static class StorageTabHeight
     {
-        //private float TopAreaHeight
-        public const float extraHeight = 56f; //move top of tab 28f
-        public static void Postfix(ref float __result)
-        {
-            __result += extraHeight;
-        }
+        static void Postfix(ITab_Storage __instance, ref float __result) => __result += StorageControls.Height(__instance);
     }
 
     [HarmonyPatch(typeof(ITab_Storage), "FillTab")]
-    static class ITab_Storage_FillTab_Patch
+    static class StorageTabControls
     {
-        //buffer string for max stack size
-        private static string mssBuffer = "";
-        private static int prevTab;
-
-        //protected override void FillTab()
-        static MethodInfo GetTopAreaHeight = AccessTools.Property(typeof(ITab_Storage), "TopAreaHeight").GetGetMethod(true);
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            //	public static void BeginGroup(Rect position);
-            MethodInfo BeginGroupInfo = AccessTools.Method(typeof(Widgets), nameof(Widgets.BeginGroup), new Type[] { typeof(Rect) });
-
-            //class Verse.ThingFilter RimWorld.StorageSettings::'filter'
-            FieldInfo filterInfo = AccessTools.Field(typeof(StorageSettings), "filter");
-            MethodInfo DoThingFilterConfigWindowInfo = AccessTools.Method(typeof(ThingFilterUI), "DoThingFilterConfigWindow");
-
-            bool firstTopAreaHeight = true;
-            List<CodeInstruction> instList = instructions.ToList();
-            for(int i=0;i<instList.Count;i++)
+            var begin = AccessTools.Method(typeof(Widgets), nameof(Widgets.BeginGroup), new[] { typeof(UnityEngine.Rect) });
+            var height = AccessTools.PropertyGetter(typeof(ITab_Storage), "TopAreaHeight");
+            bool priorityHeight = true;
+            foreach (var instruction in instructions)
             {
-                CodeInstruction inst = instList[i];
-
-                yield return inst;
-
-                if (firstTopAreaHeight &&
-                        inst.Calls(GetTopAreaHeight))
+                yield return instruction;
+                if (instruction.Calls(begin))
                 {
-                    firstTopAreaHeight = false;
-                    yield return new CodeInstruction(OpCodes.Ldc_R4, ITab_Storage_TopAreaHeight_Patch.extraHeight);
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return CodeInstruction.Call(typeof(StorageControls), nameof(StorageControls.Draw));
+                }
+                // Only the first height read sizes the priority button. Later
+                // reads place the filter below our controls and keep the extra height.
+                if (priorityHeight && instruction.Calls(height))
+                {
+                    priorityHeight = false;
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return CodeInstruction.Call(typeof(StorageControls), nameof(StorageControls.Height));
                     yield return new CodeInstruction(OpCodes.Sub);
                 }
-
-                if(inst.Calls(BeginGroupInfo))
-                {
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);//ITab_Storage this
-                    yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ITab_Storage_FillTab_Patch), nameof(DrawKanbanSettings)));
-                }
-            }
-        }
-
-        public static DateTime lastUpdateTime = DateTime.Now;
-        public static PropertyInfo SelStoreInfo = AccessTools.Property(typeof(ITab_Storage), "SelStoreSettingsParent");
-        public static void DrawKanbanSettings(ITab_Storage tab)
-        {
-            IHaulDestination haulDestination = SelStoreInfo.GetValue(tab, null) as IHaulDestination;
-            if (haulDestination == null) return;
-            StorageSettings settings = haulDestination.GetStoreSettings();
-            if (settings == null) return;
-
-            //ITab_Storage.WinSize = 300
-            float buttonMargin = ITab_Storage_TopAreaHeight_Patch.extraHeight + 4;
-            Rect rect = new Rect(0f, (float)GetTopAreaHeight.Invoke(tab, new object[] { }) - ITab_Storage_TopAreaHeight_Patch.extraHeight - 2, 280, ITab_Storage_TopAreaHeight_Patch.extraHeight);
-
-            // if Stockpile Ranking is installed, scootch these widgets up so it doesn't overlap
-            // https://github.com/alextd/RimWorld-StockpileRanking/blob/master/Source/RankSelection.cs#L18
-            if (KanbanStockpileLoader.IsStockpileRankingLoaded) {
-                rect.y -= 26f;
-            }
-
-            rect.x += buttonMargin;
-            rect.width -= buttonMargin * 3;
-            Text.Font = GameFont.Small;
-
-            KanbanSettings ks, tmp;
-            ks = State.Get(settings.owner.ToString());
-            tmp.srt = ks.srt;
-            tmp.ssl = ks.ssl;
-            tmp.mss = ks.mss;
-
-            //remember current tab and change buffer on new tab
-            if (prevTab != haulDestination.GetHashCode()) {
-                prevTab = haulDestination.GetHashCode();
-                mssBuffer = (ks.mss > 0) ? ks.mss.ToString() : "";
-            }
-
-            string stackRefillThresholdLabel = "KS.StackRefillThreshold".Translate(ks.srt);
-
-            string similarStackLimitLabel;
-            if (ks.ssl > 0) {
-                similarStackLimitLabel  = "KS.SimilarStackLimit".Translate(ks.ssl);
-            } else {
-                similarStackLimitLabel  = "KS.SimilarStackLimitOff".Translate();
-            }
-
-            //Stack Refill Threshold Slider
-            tmp.srt = (int)Widgets.HorizontalSlider(new Rect(0f, rect.yMin + 5f, 150f, 20f),
-                    ks.srt, 0f, 100f, false, stackRefillThresholdLabel, null, null, 5f);
-
-            //Similar Stack Limit Slider
-            tmp.ssl = (int)Widgets.HorizontalSlider(new Rect(155, rect.yMin + 5f, 125f, 20f),
-                    ks.ssl, 0f, 8f, false, similarStackLimitLabel, null, null, 1f);
-
-            //Max Stack Size Box and Check
-            bool checkOn = tmp.mss > 0;
-            Widgets.CheckboxLabeled(new Rect(0f, rect.yMax - 25f, 280f, 20f).LeftHalf(), "Stack Size", ref checkOn);
-			if (checkOn)
-			{
-                if (tmp.mss == 0)
-                    tmp.mss = 1;
-                
-                mssBuffer = tmp.mss.ToString();
-
-                Widgets.TextFieldNumeric(
-                    new Rect(0f, rect.yMax - 25f, 280f, 20f).RightHalf(),
-					ref tmp.mss,
-					ref mssBuffer,
-					1);
-            }
-			else
-			{
-				tmp.mss = 0;
-			}
-
-            if ( (ks.srt != tmp.srt) ||
-                (ks.ssl != tmp.ssl) ||
-                (ks.mss != tmp.mss)) {
-
-                // Accept slider changes no faster than 4Hz (250ms) to prevent spamming multiplayer sync lag
-                // (only apply this debounce if multiplayer mod is loaded)
-                //if (MP.enabled) {
-                //    DateTime curTime = DateTime.Now;
-                //    if( (curTime - lastUpdateTime).TotalMilliseconds < 250) {
-                //        return;
-                //    }
-                //    lastUpdateTime = curTime;
-                //}
-
-                KSLog.Message("[KanbanStockpile] Changed Stack Refill Threshold for settings with haulDestination named: " + settings.owner.ToString());
-                ks.srt = tmp.srt;
-                ks.ssl = tmp.ssl;
-                ks.mss = tmp.mss;
-                State.Set(settings.owner.ToString(), ks);
             }
         }
     }
 
-
-    //********************
-    //StoreUtility Patches
     [HarmonyPatch(typeof(StoreUtility), "NoStorageBlockersIn")]
-    public class StoreUtility_NoStorageBlockersIn_Patch
+    public static class StoreUtility_NoStorageBlockersIn_Patch
     {
         public static void Postfix(ref bool __result, IntVec3 c, Map map, Thing thing)
         {
-            // NOTE: Likely LWM Deep Storages Prefix() and Vanilla NoStorageBlockersIn() itself have already run
-            // returning false means storage is "full" so do *not* try to haul the thing
-            // returning true means storage still has space available for thing so try to haul it
-
-            // storage already filled up so no need to try to limit it further
-            if (__result == false) return;
-
-            // make sure we have everything we need to continue
-            if(!c.TryGetKanbanSettings(map, out var ks, out var slotGroup)) return;
-
-            // Check Stack Refill Threshold
-            if (c.TryGetStackRefillThresholdDesired(slotGroup, map, thing, ks, out int numDesired)) {
-                //KSLog.Message($"[KanbanStockpile] haulable {thing} going to {slotGroup} wants exactly {numDesired} units!");
-                if (numDesired > 0)
-                    __result = true;
-                else
-                    __result = false;
+            if (!__result || !c.TryGetKanbanSettings(map, out var settings, out var group)) return;
+            if (c.TryGetStackRefillThresholdDesired(group, map, thing, settings, out int desired))
+            {
+                if (!thing.Spawned && thing.MapHeld == map)
+                {
+                    var stored = map.thingGrid.ThingsListAt(c);
+                    for (int i = 0; i < stored.Count; i++)
+                        if (stored[i].CanStackWith(thing) && stored[i].stackCount < settings.Limit(thing.def)) return;
+                }
+                __result = desired > 0;
                 return;
             }
-
-            if (ks.ssl == 0) return;
-            int numDuplicates = 0;
-
-            // first check for duplicates already sitting there completely stored in stockpile
-            numDuplicates += KSUtil.CountStoredSimilarStacks(slotGroup, map, thing, (ks.ssl - numDuplicates), ks);
-            if (numDuplicates >= ks.ssl) {
-                //KSLog.Message($"[KanbanStockpile] Don't haul {thing} as {slotGroup} already contains at least {numDuplicates} stacks!");
-                __result = false;
-                return;
-            }
-
-            // optionally check reservations for any "in flight" hauling jobs to reduce redundant over-hauling
-            if (KanbanStockpile.Settings.ReservedSimilarStackChecking == false) return;
-
-            numDuplicates += KSUtil.CountReservedSimilarStacks(slotGroup, map, thing, (ks.ssl - numDuplicates), ks);
-            if (numDuplicates >= ks.ssl) {
-                //KSLog.Message($"[KanbanStockpile] [Reserved] Don't haul {thing} as {slotGroup} already contains at least {numDuplicates} stacks!");
-                __result = false;
-                return;
-            }
-
-            // if we get here, haul that thing!
-            return;
+            int storedCount = KSUtil.CountStoredSimilarStacks(group, map, thing, settings.ssl, settings);
+            if (storedCount >= settings.ssl) { __result = false; return; }
+            if (KanbanStockpile.Settings.ReservedSimilarStackChecking && map.reservationManager != null)
+                __result = storedCount + ReservationIndex.For(map.reservationManager)
+                    .CountNewStacks(group, map, thing, settings.ssl - storedCount, c)
+                    + (ReworkedDeliveries.Current?.NewStacks(map, group, thing, PickUpAndHaulReworked.QueryPawn(thing)) ?? 0) < settings.ssl;
         }
     }
 
-
-
-    //********************
-    //HaulAIUtility Patches
-    [HarmonyPatch(typeof(HaulAIUtility), nameof(HaulAIUtility.HaulToStorageJob))]
-    public class HaulAIUtility_HaulToStorageJob_Patch
+    [HarmonyPatch(typeof(HaulAIUtility), nameof(HaulAIUtility.HaulToCellStorageJob))]
+    public static class HaulAIUtility_HaulToStorageJob_Patch
     {
         public static void Postfix(ref Job __result, Pawn p, Thing t)
         {
-            if (__result == null) return;
-
-            // figure out where this hauling job is going
-            if (!__result.TryGetHaulingDestination(out Map map, out IntVec3 dest, out SlotGroup sg)) return;
-
-            // make sure we have everything we need to continue
-            if(!dest.TryGetKanbanSettings(t.Map, out var ks, out var slotGroup)) return;
-
-            // Check Stack Refill Threshold
-            if (dest.TryGetStackRefillThresholdDesired(slotGroup, map, t, ks, out int numDesired)) {
-                __result.count = Math.Min(__result.count, numDesired);
+            if (__result == null || !__result.TryGetHaulingDestination(out var map, out var cell, out var group)
+                || !cell.TryGetKanbanSettings(map, out var settings, out _)) return;
+            int carryingCapacity = settings.srt < 100 ? p.carryTracker.MaxStackSpaceEver(t.def) : t.def.stackLimit;
+            if (settings.srt < 100)
+            {
+                var stored = map.thingGrid.ThingsListAt(cell);
+                for (int i = 0; i < stored.Count; i++)
+                    if (stored[i].CanStackWith(t)) RefillCycles.RecordLoad(stored[i], carryingCapacity);
             }
-
-            // limit haul ammount to max stack size if max stack size is greater than zero
-            int stackLimit = (ks.mss > 0) ? Math.Min(t.def.stackLimit, ks.mss) : t.def.stackLimit;
-            __result.count = Math.Min(__result.count, stackLimit);
-
-            //KSLog.Message($"[KanbanStockpile] HaulToStorageJob Postfix() {p} hauling {__result.count}x {t} going to {map} {dest} {sg} with max stack size {ks.mss}");
-            // cancel this haul if it turns out the stockpile wants 0
+            int desired = settings.Limit(t.def);
+            bool existing = cell.TryGetStackRefillThresholdDesired(group, map, t, settings, out int refill);
+            if (existing) desired = refill;
+            if (existing && !t.Spawned && t.MapHeld == map)
+            {
+                var stored = map.thingGrid.ThingsListAt(cell);
+                for (int i = 0; i < stored.Count; i++)
+                    if (stored[i].CanStackWith(t)) desired = Math.Max(desired, settings.Limit(t.def) - stored[i].stackCount);
+            }
+            if (KanbanStockpile.Settings.ReservedSimilarStackChecking && map.reservationManager != null)
+            {
+                desired -= ReservationIndex.For(map.reservationManager).Incoming(group, map, cell, t, __result);
+                desired -= ReworkedDeliveries.Current?.IncomingQuantity(map, cell, t, p) ?? 0;
+            }
+            __result.count = Math.Min(__result.count, Math.Max(0, desired));
+            if (existing && settings.srt < 100)
+            {
+                int limit = settings.Limit(t.def);
+                int trigger = (int)((long)limit * settings.srt / 100);
+                int minimum = RefillCycles.MinimumDelivery(limit, settings.srt, carryingCapacity);
+                var things = map.thingGrid.ThingsListAt(cell);
+                bool urgent = false;
+                for (int i = 0; i < things.Count; i++)
+                    if (things[i].CanStackWith(t) && things[i].stackCount <= trigger) { urgent = true; break; }
+                // Only inspect nearby piles for a small, non-urgent source.
+                // Normal loads and low-stock deliveries take no extra search.
+                if (!urgent && p.carryTracker.CarriedThing == null
+                    && (Math.Min(desired, carryingCapacity) < minimum
+                        || t.stackCount < minimum && !HaulBatchEstimate.HasMinimumNearby(p, t, cell, minimum)))
+                    __result.count = 0;
+            }
             if (__result.count <= 0) __result = null;
-
-            return;
         }
     }
 
-    //********************
-    //PickUpAndHaul Patches
+    static class HaulBatchEstimate
+    {
+        public static bool HasMinimumNearby(Pawn pawn, Thing source, IntVec3 destination, int minimum)
+        {
+            int count = source.stackCount;
+            int cells = GenRadial.NumCellsInRadius(8f);
+            for (int i = 0; i < cells && count < minimum; i++)
+            {
+                var cell = source.Position + GenRadial.RadialPattern[i];
+                if (cell == destination || !cell.InBounds(pawn.Map)) continue;
+                var things = pawn.Map.thingGrid.ThingsListAt(cell);
+                for (int j = 0; j < things.Count && count < minimum; j++)
+                {
+                    var candidate = things[j];
+                    if (candidate == source || candidate.def != source.def || !candidate.CanStackWith(source)
+                        || candidate.stackCount >= candidate.def.stackLimit || candidate.IsForbidden(pawn)
+                        || !candidate.IsSociallyProper(pawn) || !pawn.CanReserveAndReach(candidate, PathEndMode.ClosestTouch, pawn.NormalMaxDanger())) continue;
+                    count += candidate.stackCount;
+                }
+            }
+            return count >= minimum;
+        }
+    }
+
     static class PickUpAndHaul_WorkGiver_HaulToInventory_Patch
     {
-        // apply patches manually at runtime using reflection to get PUAH types and methods
         public static void ApplyPatch(Harmony harmony)
         {
-            var originalType = AccessTools.TypeByName("PickUpAndHaul.WorkGiver_HaulToInventory");
-            if(originalType == null) {
-                Log.Warning("[KanbanStockpile] ERROR: TypeByName. Unable to patch PUAH mod.");
-                return;
-            }
-
-            var CapacityAtMethod = AccessTools.Method(originalType, "CapacityAt");
-            if(CapacityAtMethod == null) {
-                Log.Warning("[KanbanStockpile] ERROR: Unable to patch PUAH method CapacityAt");
-                return;
-            }
-
-            Log.Message($"[KanbanStockpile] Patching Mehni/Mlie PickUpAndHaul mod!");
-
-            // postfix patch
-            harmony.Patch(CapacityAtMethod,
-                          null,
-                          new HarmonyMethod(typeof(PickUpAndHaul_WorkGiver_HaulToInventory_Patch),
-                          "CapacityAtPostfix"));
-
+            var type = AccessTools.TypeByName("PickUpAndHaul.WorkGiver_HaulToInventory");
+            var capacity = type == null ? null : AccessTools.Method(type, "CapacityAt");
+            if (capacity == null) throw new MissingMethodException("Pick Up And Haul CapacityAt");
+            harmony.Patch(capacity, postfix: new HarmonyMethod(typeof(PickUpAndHaul_WorkGiver_HaulToInventory_Patch), nameof(CapacityAtPostfix)));
         }
-
         public static void CapacityAtPostfix(ref int __result, Thing thing, IntVec3 storeCell, Map map)
         {
-            // if there is no capacity left no need to limit it further
-            if(__result <= 0) return;
-
-            // make sure we have everything we need to continue
-            if(!storeCell.TryGetKanbanSettings(map, out var ks, out var slotGroup)) return;
-
-            // PUAH doesn't do reservations correctly: fall back to vanilla hauling to avoid redundant overhauling if srt/ssl/mss enabled
-            if (ks.srt == 100 && ks.ssl == 0 && ks.mss == 0) return;
-            __result = 0;
-
-            return;
+            if (__result > 0 && storeCell.TryGetKanbanSettings(map, out _, out _)) __result = 0;
         }
-
     }
 
-    //********************
-    //StorageSettings Patches
     [HarmonyPatch(typeof(StorageSettings), nameof(StorageSettings.ExposeData))]
-    public class StorageSettings_ExposeData_Patch
+    static class StorageSettingsSave
     {
-        public static void Postfix(StorageSettings __instance)
+        static void Postfix(StorageSettings __instance)
         {
-            // The clipboard StorageSettings has no owner, so assume a null is the clipboard...
-            string label = __instance?.owner?.ToString() ?? "___clipboard";
-            KSLog.Message("[KanbanStockpile] ExposeData() with owner name: " + label);
-            KanbanSettings ks = State.Get(label);
-
-            if (Scribe.mode == LoadSaveMode.Saving)
-            {
-                // this mode implicitly takes the value currently in srt and saves it out
-                Scribe_Values.Look(ref ks.srt, "stackRefillThreshold", 100, true);
-                Scribe_Values.Look(ref ks.ssl, "similarStackLimit", 0, true);
-                Scribe_Values.Look(ref ks.mss, "maxStackSize", 0, true);
-            }
-            else if (Scribe.mode == LoadSaveMode.LoadingVars)
-            {
-                // this mode implicitly loads some other value into this instance of srt
-                Scribe_Values.Look(ref ks.srt, "stackRefillThreshold", 100, false);
-                Scribe_Values.Look(ref ks.ssl, "similarStackLimit", 0, false);
-                Scribe_Values.Look(ref ks.mss, "maxStackSize", 0, false);
-                State.Set(label, ks);
-            }
+            var settings = State.Get(__instance);
+            Scribe_Values.Look(ref settings.srt, "stackRefillThreshold", 100);
+            Scribe_Values.Look(ref settings.ssl, "similarStackLimit", 0);
+            Scribe_Values.Look(ref settings.mss, "maxStackSize", 0);
+            if (Scribe.mode == LoadSaveMode.LoadingVars) State.Set(__instance, settings);
         }
     }
 
     [HarmonyPatch(typeof(StorageSettings), nameof(StorageSettings.CopyFrom))]
-	class StorageSettings_CopyFrom_Patch
-	{
-        static readonly MethodBase Building_Storage_PostMake = AccessTools.Method(typeof(Building_Storage), nameof(Building_Storage.PostMake));
-
-		//public void CopyFrom(StorageSettings other)
-        public static void CopyFrom(StorageSettings __instance, StorageSettings other)
-        {
-            var st = new StackTrace();
-            if (st.FrameCount > 3 && st.GetFrame(2).GetMethod() == Building_Storage_PostMake)
-                return; // prevent copy settings when called from Building_Storage:PostMake, new storage - bananasss00
-
-            KSLog.Message("[KanbanStockpile] CopyFrom()");
-            string label = other?.owner?.ToString() ?? "___clipboard";
-            KanbanSettings ks = State.Get(label);
-            label = __instance?.owner?.ToString() ?? "___clipboard";
-            State.Set(label, ks);
-        }
-
-		public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-		{
-            //private void TryNotifyChanged()
-			MethodInfo TryNotifyChangedInfo = AccessTools.Method(typeof(StorageSettings), "TryNotifyChanged");
-
-			foreach (CodeInstruction i in instructions)
-			{
-				if(i.Calls(TryNotifyChangedInfo))
-				{
-					//RankComp.CopyFrom(__instance, other);
-					yield return new CodeInstruction(OpCodes.Ldarg_0);//this
-					yield return new CodeInstruction(OpCodes.Ldarg_1);//other
-					yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(StorageSettings_CopyFrom_Patch), nameof(StorageSettings_CopyFrom_Patch.CopyFrom)));
-				}
-				yield return i;
-			}
-		}
-	}
-
-    //********************
-    //ZoneStockpile Patches
-	[HarmonyPatch(typeof(Zone_Stockpile), nameof(Zone_Stockpile.PostDeregister))]
-    static class Zone_Stockpile_PostDeregister_Patch
+    static class StorageSettingsCopy
     {
-        public static void Postfix(Zone_Stockpile __instance)
-        {
-            KSLog.Message("[KanbanStockpile] Zone_Stockpile_PostDeregister_Patch.Postfix()");
-            if(State.Exists(__instance.ToString())) {
-                KSLog.Message("[KanbanStockpile] Removing " + __instance.ToString());
-                State.Del(__instance.ToString());
-            }
-        }
+        static void Postfix(StorageSettings __instance, StorageSettings other) => State.Set(__instance, State.Get(other));
     }
-
-    //********************
-    //Dialog_RenameZone Patches
-    //[HarmonyPatch(typeof(Dialog_RenameZone), nameof(Dialog_RenameZone.OnRenamed))]
-    //static class Dialog_RenameZone_OnRename_Patch
-    //{
-    //    public static void Prefix(Zone ___zone, string name)
-    //    {
-    //        //private Zone zone;
-    //        string oldName = ___zone?.label ?? "N/A";
-
-    //        KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() oldName: " + oldName);
-    //        KSLog.Message("[KanbanStockpile] Dialog_RenameZone.SetName() newName: " + name);
-    //        if(oldName == "N/A") return;
-
-    //        State.Set(name, State.Get(oldName));
-    //        State.Del(oldName);
-    //    }
-    //}
 }

@@ -1,0 +1,22 @@
+schema = 1
+key = "kanban-refilled"
+name = "KanbanStockpile-Refilled"
+package_id = "eiennohito.kanbanstockpile.refill"
+status = "active"
+project = "Source/KanbanStockpile.csproj"
+assembly = "KanbanStockpile"
+content = ["About", "Languages", "LICENSE", "PURPOSE.md"]
+exclude = ["About/Manifest.xml", "About/Features.png"]
+dependencies = ["brrainz.harmony"]
+conflicts = ["endag.kanbanstockpile", "local.kanbanstockpile.refill"]
+
+[tests.runtime]
+args = []
+
+[tests.screenshots]
+project = "tests/screenshots/RefilledScreenshots.csproj"
+assembly = "RefilledScreenshots"
+package_id = "local.refilled.screenshots"
+args = ["-RefilledScreenshots"]
+report = "RefilledScreenshots/capture.json"
+ui = true

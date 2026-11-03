@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><WorkspaceRoot Condition="'$(WorkspaceRoot)' == ''">$(MSBuildThisFileDirectory)../../../..</WorkspaceRoot></PropertyGroup>
+  <Import Project="$(WorkspaceRoot)/tools/dotnet/RimWorld17.props" />
+</Project>
