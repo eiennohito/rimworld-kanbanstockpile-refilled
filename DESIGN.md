@@ -81,10 +81,15 @@ small source in isolation. Several fragments may meet the minimum together;
 urgent supplies, already carried cargo and other useful work in the same batch
 allow smaller accompanying refills. A lone tiny non-urgent refill is rejected.
 
-The adapter intercepts `BatchPickupPlan.Fill` so several sources cannot each
-claim the same space, and several cells cannot each claim the last allowed
-similar stack. Native capacity calls and merge targets are also capped, including
-acquisition rechecks and unloading. This avoids forcing a vanilla haul for each
+The adapter intercepts `StorageTally.Take`, allocating controlled destinations
+cell by cell and retaining promises on that tally. `ReserveCarriedCargo` identifies
+the owning batch before allocation starts. Several sources cannot each claim the
+same space, and several cells cannot each claim the last allowed similar stack.
+Native capacity calls in `HaulingWork.Storage` and `CellCapacity` are also capped, including acquisition rechecks and unloading. The merge-aware `CanHaul`
+overload caps the merge count before `TryPlanPickup` records its tally;
+`TryPlanPickup` then retains the destination promise. A core postfix on
+`WorkGiver_Merge.JobOnThing` limits native merge jobs, including Reworked's
+fallback and pending merge jobs. This avoids forcing a vanilla haul for each
 stack of light materials. The original/Mlie PUAH adapter is unchanged.
 
 Successful batch reservations commit the planned destinations to a game
@@ -112,12 +117,33 @@ and matching pickup/cargo lists; planning additionally keeps a local allocation
 list. Work scales with active batches, their destinations and Reworked's existing
 source limits, rather than every item on the map.
 
-Inspected installed Reworked 1.7 DLL: SHA-256
-`26e8d95e44bab8b703617e06a7bd53ef85e23cb62e8db0708e13a20e9d453bbe`,
-public API contract 3; RimWorld `1.7.4995 rev309`. The headless runtime fixture
-exercises the actual patched `Fill` and delivery capacity methods, storage-wide
-allocation, queued promises, failed pickups, cancellation, cargo ownership and
-Scribe round trips. It does not simulate a pawn walking a complete hauling route.
+Optional integrations use separate Harmony owners. If installation throws,
+the loader removes that owner's patches and clears the Reworked API delegates;
+core storage patches and the loader remain usable. A diagnostic error identifies
+the unavailable integration. This contains startup failures; an unsupported
+Reworked version does not retain the adapter's batch-capacity guarantees.
+
+There is no initialization scan. Each controlled `Take` visits destination cells
+until the request is satisfied or the group is exhausted. Each visited cell uses
+the existing capacity calculation and its local promises; uncontrolled storage
+and containers retain Reworked's native tally. This adds no tick work or source
+search. Merge jobs also apply the existing refill/minimum-delivery checks.
+
+Inspected installed Reworked 1.7 DLL on 2026-11-04: SHA-256
+`317ab30c2b5a51341b4f80aefe3691b6fa3a81ca9903b03853905625d737953a`,
+public API contract 3; RimWorld `1.7.4998 rev1299`. The unchanged public API
+version does not guarantee stable internal planning methods. The current DLL
+removed `TryFindMergeTarget` and `BatchPickupPlan.Fill` and moved cargo ownership
+from `CargoState` to `CargoComp`.
+
+The headless runtime fixture exercises the actual patched `StorageTally.Take`
+and delivery capacity methods, group allocation, queued promises, failed pickups,
+cancellation, current cargo ownership and Scribe round trips. Merge helper checks
+cover remaining capacity and repeated allocations. An injected optional patch
+failure verifies partial-patch rollback while the core Storage tab patch remains.
+The small map has storage grids but no pathfinder: a fixture-only prefix passes
+no carrier to native cell acceptance checks, excluding reachability. It does not
+simulate a pawn walking a complete hauling route or render the Storage tab.
 
 ## Source and license
 

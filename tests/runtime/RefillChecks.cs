@@ -13,9 +13,38 @@ namespace WorkspaceDiagnostics;
 
 public static partial class Diagnostics
 {
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static int IntegrationSentinel() => 3;
+    static void IntegrationSentinelPostfix(ref int __result) => __result = 99;
+
+    static Map capacityFixtureMap;
+    // This fixture has grids and storage, but no pathfinder. Keep native cell
+    // acceptance checks while excluding carrier reachability from this test.
+    static void CapacityFixtureCell(Map map, ref Pawn carrier)
+    {
+        if (map == capacityFixtureMap) carrier = null;
+    }
+
     static void RunRefillChecks(Assembly assembly, List<object> tests)
     {
         void Check(string name, int expected, int actual) => tests.Add(new { name, expected, actual, pass = expected == actual });
+        var loader = assembly.GetType("KanbanStockpile.KanbanStockpileLoader");
+        Check("Storage loader initialized without a cached type failure", 1,
+            AccessTools.Field(loader, "IsPickUpAndHaulLoaded").GetValue(null) is bool ? 1 : 0);
+        var optional = new Harmony("refilled.tests.failed-integration");
+        var sentinel = AccessTools.Method(typeof(Diagnostics), nameof(IntegrationSentinel));
+        Exception failure = null;
+        Action<Harmony> brokenIntegration = h => {
+            h.Patch(sentinel, postfix: new HarmonyMethod(typeof(Diagnostics), nameof(IntegrationSentinelPostfix)));
+            throw new MissingMethodException("Simulated optional API change");
+        };
+        bool applied = (bool)AccessTools.Method(loader, "TryApplyIntegration").Invoke(null,
+            new object[] { optional, brokenIntegration, (Action<Exception>)(ex => failure = ex) });
+        Check("Optional integration failure is contained", 1, !applied && failure is MissingMethodException ? 1 : 0);
+        Check("Optional integration failure rolls back partial patches", 3, IntegrationSentinel());
+        Check("Core storage controls survive optional integration rollback", 1,
+            Harmony.GetPatchInfo(AccessTools.Method(typeof(ITab_Storage), "FillTab")).Owners
+                .Contains("eiennohito.kanbanstockpile.refill") ? 1 : 0);
         var originalGame = Current.Game;
         var game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
         game.components = new List<GameComponent>();
@@ -23,12 +52,17 @@ public static partial class Diagnostics
         var deliveries = Activator.CreateInstance(deliveriesType, game);
         game.components.Add((GameComponent)deliveries);
         var map = new Map();
+        var fixturePatches = new Harmony("refilled.tests.capacity-cells");
+        capacityFixtureMap = map;
+        fixturePatches.Patch(AccessTools.Method(typeof(StoreUtility), "IsGoodStoreCell"),
+            prefix: new HarmonyMethod(typeof(Diagnostics), nameof(CapacityFixtureCell)));
         map.info.Size = new IntVec3(4, 1, 4);
         map.cellIndices = new CellIndices(map);
         map.thingGrid = new ThingGrid(map);
         map.edificeGrid = new EdificeGrid(map);
         map.haulDestinationManager = new HaulDestinationManager(map);
         map.reservationManager = new ReservationManager(map);
+        map.physicalInteractionReservationManager = new PhysicalInteractionReservationManager();
         map.spawnedThings = new ThingOwner<Thing>(map);
         AccessTools.Field(typeof(Game), "maps").SetValue(game, new List<Map> { map });
         Current.Game = game;
@@ -258,29 +292,48 @@ public static partial class Diagnostics
                 Check("Collected cargo passes the native good-cell check", 1,
                     StoreUtility.IsGoodStoreCell(cell, map, source, null, null) ? 1 : 0);
                 Check("Actual Reworked delivery uses the rewritten capacity call", 10,
-                    (int)AccessTools.Method(work, "TargetCapacity").Invoke(null, new object[] { pawn, source, new LocalTargetInfo(cell) }));
+                    (int)AccessTools.Method(work, "TargetCapacity").Invoke(null, new object[] { pawn, source, new LocalTargetInfo(cell), false }));
 
                 Configure(100, 2, 0);
                 stored.stackCount = 60;
                 pawn.inventory = new Pawn_InventoryTracker(pawn);
                 var planType = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.BatchPickupPlan");
-                object plan = RuntimeHelpers.GetUninitializedObject(planType);
-                AccessTools.Field(planType, "pawn").SetValue(plan, pawn);
-                AccessTools.Field(planType, "<Targets>k__BackingField").SetValue(plan, new List<LocalTargetInfo>());
-                var fill = AccessTools.Method(planType, "Fill");
+                var tallyType = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.StorageTally");
+                var take = AccessTools.Method(tallyType, "Take");
+                object NewPlan()
+                {
+                    var result = RuntimeHelpers.GetUninitializedObject(planType);
+                    AccessTools.Field(planType, "pawn").SetValue(result, pawn);
+                    AccessTools.Field(planType, "tally").SetValue(result, Activator.CreateInstance(tallyType, true));
+                    AccessTools.Field(planType, "<Targets>k__BackingField").SetValue(result, new List<LocalTargetInfo>());
+                    return result;
+                }
+                int Allocate(object planning, Thing item, IntVec3 at, int requested)
+                {
+                    AccessTools.Method(adapter, "PlanStarted").Invoke(null, new[] { planning });
+                    // Restrict this query to one cell to exercise cell promises;
+                    // a separate query below covers the complete group.
+                    var saved = new List<IntVec3>(group.CellsList);
+                    group.CellsList.Clear();
+                    group.CellsList.Add(at);
+                    try { return (int)take.Invoke(AccessTools.Field(planType, "tally").GetValue(planning),
+                        new object[] { pawn, item, destination, requested }); }
+                    finally { group.CellsList.Clear(); group.CellsList.AddRange(saved); }
+                }
+                object plan = NewPlan();
                 Check("Actual PUAH plan fills partial and additional shelf stacks", 90,
-                    (int)fill.Invoke(plan, new object[] { source, cell, 200 }));
+                    Allocate(plan, source, cell, 200));
                 var anotherSource = new Thing { def = source.def, stackCount = 75, thingIDNumber = 100008 };
                 Check("Another source cannot exceed the same batch's stack allowance", 0,
-                    (int)fill.Invoke(plan, new object[] { anotherSource, cell, 75 }));
+                    Allocate(plan, anotherSource, cell, 75));
 
                 Configure(100, 3, 0);
                 var secondCell = destination.AllSlotCellsList()[1];
                 map.edificeGrid.InnerArray[map.cellIndices.CellToIndex(secondCell)] = new Building { def = ThingDefOf.Shelf };
                 Check("Same batch can allocate another stack at another cell", 75,
-                    (int)fill.Invoke(plan, new object[] { anotherSource, secondCell, 75 }));
+                    Allocate(plan, anotherSource, secondCell, 75));
                 Check("Storage-wide stack limit applies across planned cells", 0,
-                    (int)fill.Invoke(plan, new object[] { anotherSource, secondCell, 75 }));
+                    Allocate(plan, anotherSource, secondCell, 75));
 
                 // Exercise the real adapter's commit boundary with queued pickup
                 // quantities, before any inventory cargo has been collected.
@@ -336,12 +389,11 @@ public static partial class Diagnostics
                 batch.countQueue.RemoveAt(2);
                 Check("Failed pickup reduces promised deliveries", 60, Promised(secondCell));
 
-                var cargoType = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Cargo.CargoState");
-                var cargo = Activator.CreateInstance(cargoType, game);
-                game.components.Add((GameComponent)cargo);
-                var owned = AccessTools.Method(cargoType, "For").Invoke(cargo, new object[] { pawn, true });
-                var ledger = AccessTools.Field(owned.GetType(), "Ledger").GetValue(owned);
-                AccessTools.Method(ledger.GetType(), "Acquired").Invoke(ledger, new object[] { source, 75, 75 });
+                var cargoType = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Cargo.CargoComp");
+                var cargo = (ThingComp)Activator.CreateInstance(cargoType);
+                cargo.parent = pawn;
+                AccessTools.Field(typeof(ThingWithComps), "comps").SetValue(pawn, new List<ThingComp> { cargo });
+                AccessTools.Method(cargoType, "Add").Invoke(cargo, new object[] { source });
                 AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(source, (sbyte)-1);
                 pawn.inventory.innerContainer.InnerListForReading.Add(source);
                 source.holdingOwner = pawn.inventory.innerContainer;
@@ -361,13 +413,35 @@ public static partial class Diagnostics
                 {
                     var def = DefDatabase<ThingDef>.GetNamed(defName);
                     var material = new Thing { def = def, stackCount = def.stackLimit, thingIDNumber = 110000 + def.shortHash };
-                    object resourcePlan = RuntimeHelpers.GetUninitializedObject(planType);
-                    AccessTools.Field(planType, "pawn").SetValue(resourcePlan, pawn);
+                    object resourcePlan = NewPlan();
                     Check(defName + " batches two full stacks into controlled shelf space", 2 * def.stackLimit,
-                        (int)fill.Invoke(resourcePlan, new object[] { material, cell, 2 * def.stackLimit }));
+                        Allocate(resourcePlan, material, cell, 2 * def.stackLimit));
                     Check(defName + " cannot overfill its allocated shelf space", 0,
-                        (int)fill.Invoke(resourcePlan, new object[] { material, cell, def.stackLimit }));
+                        Allocate(resourcePlan, material, cell, def.stackLimit));
                 }
+
+                Configure(100, 3, 0);
+                stored.stackCount = 60;
+                var groupPlan = NewPlan();
+                AccessTools.Method(adapter, "PlanStarted").Invoke(null, new[] { groupPlan });
+                var groupTally = AccessTools.Field(planType, "tally").GetValue(groupPlan);
+                Check("Actual group tally allocates partial and new stacks across cells", 165,
+                    (int)take.Invoke(groupTally, new object[] { pawn, anotherSource, destination, 300 }));
+                Check("Actual group tally cannot allocate the same stack slots twice", 0,
+                    (int)take.Invoke(groupTally, new object[] { pawn, anotherSource, destination, 75 }));
+
+                Configure(100, 1, 70);
+                stored.stackCount = 60;
+                var mergePlan = NewPlan();
+                AccessTools.Method(adapter, "PlanStarted").Invoke(null, new[] { mergePlan });
+                object[] mergeArgs = { pawn, anotherSource, new LocalTargetInfo(cell), 50, true };
+                AccessTools.Method(adapter, "MergePostfix").Invoke(null, mergeArgs);
+                Check("Merge planning respects the remaining absolute capacity", 10, (int)mergeArgs[3]);
+                AccessTools.Method(adapter, "PickupPlanned").Invoke(null, new object[] { pawn, anotherSource,
+                    AccessTools.Field(planType, "tally").GetValue(mergePlan), 10, true });
+                mergeArgs = new object[] { pawn, anotherSource, new LocalTargetInfo(cell), 50, true };
+                AccessTools.Method(adapter, "MergePostfix").Invoke(null, mergeArgs);
+                Check("Merge planning subtracts earlier allocations in the same batch", 0, (bool)mergeArgs[4] ? 1 : 0);
 
                 Configure(70, 1, 70);
                 stored.stackCount = 40;
@@ -376,13 +450,12 @@ public static partial class Diagnostics
                 capacity.Invoke(null, new object[] { cell, map, anotherSource });
                 AccessTools.Method(adapter, "EndPlanning").Invoke(null, new object[] { null, lookup[1] });
                 stored.stackCount = 55;
-                object fragments = RuntimeHelpers.GetUninitializedObject(planType);
-                AccessTools.Field(planType, "pawn").SetValue(fragments, pawn);
+                object fragments = NewPlan();
                 var tiny = new Thing { def = source.def, stackCount = 5, thingIDNumber = 100010 };
                 AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(tiny, (sbyte)0);
                 var fragmentTargets = new List<LocalTargetInfo> { tiny };
                 AccessTools.Field(planType, "<Targets>k__BackingField").SetValue(fragments, fragmentTargets);
-                fill.Invoke(fragments, new object[] { tiny, cell, 5 });
+                Allocate(fragments, tiny, cell, 5);
                 var fragmentJob = new Job { def = batchDef, targetQueueA = fragmentTargets, countQueue = new List<int> { 5 } };
                 object[] fragmentArgs = { pawn, fragmentJob };
                 AccessTools.Method(adapter, "BatchCreated").Invoke(null, fragmentArgs);
@@ -391,7 +464,7 @@ public static partial class Diagnostics
                 AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(tiny2, (sbyte)0);
                 fragmentTargets.Add(tiny2);
                 fragmentJob.countQueue.Add(5);
-                fill.Invoke(fragments, new object[] { tiny2, cell, 5 });
+                Allocate(fragments, tiny2, cell, 5);
                 fragmentArgs = new object[] { pawn, fragmentJob };
                 AccessTools.Method(adapter, "BatchCreated").Invoke(null, fragmentArgs);
                 Check("Several small sources together can make a useful refill batch", 1, fragmentArgs[1] != null ? 1 : 0);
@@ -400,6 +473,8 @@ public static partial class Diagnostics
         finally
         {
             if (Scribe.mode != LoadSaveMode.Inactive) Scribe.ForceStop();
+            fixturePatches.UnpatchAll(fixturePatches.Id);
+            capacityFixtureMap = null;
             Current.Game = originalGame;
         }
     }

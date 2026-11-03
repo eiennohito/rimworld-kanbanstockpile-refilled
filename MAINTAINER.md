@@ -10,8 +10,9 @@ Keep `About/PublishedFileId.txt` in packages so an upload updates that item.
 The package ID is `eiennohito.kanbanstockpile.refill`. RimWorld's uploader takes
 the description from `About/About.xml`; it is also shown in the game's mod list.
 
-Release 1.1 adds Reworked batching. About/About.xml records version 1.1; the
-assembly version is 1.1.0.0. The release notes are the 1.1 section of CHANGELOG.md.
+Release 1.1.1 fixes compatibility with the updated Reworked planner and contains
+optional integration startup failures. About/About.xml records version 1.1.1; the
+assembly version is 1.1.1.0. Release notes are in the 1.1.1 section of CHANGELOG.md.
 Check the installed and published versions when selecting a release package.
 
 From the workspace root:
@@ -87,3 +88,23 @@ in the mod package.
 Carousel images are separate from the downloadable mod files. Update changed
 screenshots through the image manager when releasing new ones. BUILDING.md
 records the uploader behavior and API references for future automation.
+
+## Version 1.1.1 — 2026-11-04
+
+Compatibility repair for the current Reworked planner. The repair passed 86
+headless checks with Reworked and 53 without it on RimWorld 1.7.4998 rev1299;
+DESIGN.md records coverage and limits. Only release metadata changed afterwards.
+
+Version 1.1.1 was published to item 3832323892 using validated package
+`20261103T234538-bc2aaee9`. SteamCMD authenticated with cached credentials,
+committed the update successfully and exited zero. The wrapper verified that the
+Workshop item ID remained unchanged and saved a published receipt. The upload
+included the 1.1.1 compatibility notes, description and main preview; tags,
+visibility and carousel images were left unchanged.
+
+The [publication receipt](../../state/publications/kanban-refilled/kanban-refilled-20261103T234841-5d3e9e3e.json)
+records the package, release note and result. The first attempt stopped at login
+before upload; the retry succeeded after local authentication. The public Change
+Notes page could not be independently verified through the available web access.
+Leased upload evidence is in `sessions/refilled-1-1-1-release/`.
+Local installation and activation were not changed.

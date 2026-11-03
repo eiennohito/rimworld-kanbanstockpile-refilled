@@ -20,13 +20,28 @@ namespace KanbanStockpile
             IsStockpileRankingLoaded = Loaded("Uuugggg.StockpileRanking") || Loaded("memegoddess.stockpileranking");
             if (Loaded("Dreadarm.PickUpAndHaul"))
             {
-                IsPickUpAndHaulLoaded = true;
-                PickUpAndHaulReworked.ApplyPatch(harmony);
+                IsPickUpAndHaulLoaded = TryApplyIntegration(
+                    new Harmony(harmony.Id + ".reworked"), PickUpAndHaulReworked.ApplyPatch,
+                    ex => { PickUpAndHaulReworked.Reset(); Log.Error("[KanbanStockpile] Reworked integration disabled: " + ex); });
             }
             else if (Loaded("Mehni.PickUpAndHaul") || Loaded("Mlie.PickUpAndHaul"))
             {
-                IsPickUpAndHaulLoaded = true;
-                PickUpAndHaul_WorkGiver_HaulToInventory_Patch.ApplyPatch(harmony);
+                IsPickUpAndHaulLoaded = TryApplyIntegration(
+                    new Harmony(harmony.Id + ".puah"), PickUpAndHaul_WorkGiver_HaulToInventory_Patch.ApplyPatch,
+                    ex => Log.Error("[KanbanStockpile] Pick Up And Haul integration disabled: " + ex));
+            }
+        }
+
+        // Optional patches use a separate owner so rollback cannot remove the
+        // storage controls or the other core rules installed by PatchAll.
+        internal static bool TryApplyIntegration(Harmony harmony, Action<Harmony> apply, Action<Exception> failed)
+        {
+            try { apply(harmony); return true; }
+            catch (Exception ex)
+            {
+                harmony.UnpatchAll(harmony.Id);
+                failed(ex);
+                return false;
             }
         }
 

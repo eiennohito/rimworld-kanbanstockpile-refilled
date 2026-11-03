@@ -118,6 +118,13 @@ namespace KanbanStockpile
         }
     }
 
+    [HarmonyPatch(typeof(WorkGiver_Merge), nameof(WorkGiver_Merge.JobOnThing))]
+    static class MergeStorageLimits
+    {
+        static void Postfix(Pawn pawn, Thing t, ref Job __result) =>
+            HaulAIUtility_HaulToStorageJob_Patch.Postfix(ref __result, pawn, t);
+    }
+
     static class HaulBatchEstimate
     {
         public static bool HasMinimumNearby(Pawn pawn, Thing source, IntVec3 destination, int minimum)

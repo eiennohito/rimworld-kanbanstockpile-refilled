@@ -21,7 +21,8 @@ namespace KanbanStockpile
         [ThreadStatic] private static object activePlan;
         private static readonly ConditionalWeakTable<object, List<PlannedDelivery>> allocations = new();
         private static readonly ConditionalWeakTable<Job, List<PlannedDelivery>> jobPlans = new();
-        private static AccessTools.FieldRef<object, Pawn> planPawn;
+        private static AccessTools.FieldRef<object, object> planTally;
+        [ThreadStatic] private static LocalTargetInfo pickupMergeTarget;
         private static AccessTools.FieldRef<object, List<LocalTargetInfo>> planTargets;
         private static Func<Job, bool> isHaulingJob;
         private static Func<Pawn, Thing, int> hauledCount;
@@ -38,13 +39,24 @@ namespace KanbanStockpile
             return isHaulingJob != null && isHaulingJob(job);
         }
 
+        public static void Reset()
+        {
+            isHaulingJob = null;
+            hauledCount = null;
+            batchDef = null;
+            planTargets = null;
+            planTally = null;
+        }
+
+        private static List<PlannedDelivery> Deliveries(object plan) => allocations.GetOrCreateValue(planTally(plan));
+
         public static void ApplyPatch(Harmony harmony)
         {
             Type work = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.HaulingWork");
             Type plan = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.BatchPickupPlan");
             Type api = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Api.V1");
-            Type mergeGiver = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.WorkGiver_BatchMerge");
-            if (work == null || plan == null || api == null || mergeGiver == null)
+            Type tally = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.StorageTally");
+            if (work == null || plan == null || api == null || tally == null)
                 throw new MissingMemberException("[KanbanStockpile] Unsupported Pick Up And Haul Reworked API.");
 
             var classify = AccessTools.Method(api, "IsHaulingJob", new[] { typeof(Job) });
@@ -53,13 +65,14 @@ namespace KanbanStockpile
             isHaulingJob = (Func<Job, bool>)Delegate.CreateDelegate(typeof(Func<Job, bool>), classify);
             hauledCount = (Func<Pawn, Thing, int>)Delegate.CreateDelegate(typeof(Func<Pawn, Thing, int>), AccessTools.Method(api, "GetHauledCount"));
             batchDef = DefDatabase<JobDef>.GetNamed("Dreadarm_PickUpAndHaul_Batch");
-            planPawn = AccessTools.FieldRefAccess<Pawn>(plan, "pawn");
+            planTally = AccessTools.FieldRefAccess<object>(plan, "tally");
             planTargets = AccessTools.FieldRefAccess<List<LocalTargetInfo>>(plan, "<Targets>k__BackingField");
 
             var scopeMethods = new[] { AccessTools.Method(work, "PrimaryPlan"), AccessTools.Method(work, "BatchJob") };
-            var merge = AccessTools.Method(work, "TryFindMergeTarget");
-            var mergeJob = AccessTools.Method(mergeGiver, "JobOnThing");
-            if (scopeMethods.Any(m => m == null) || merge == null || mergeJob == null)
+            var canHaul = AccessTools.Method(work, "CanHaul", new[] { typeof(Pawn), typeof(Thing), typeof(bool),
+                typeof(Job), typeof(LocalTargetInfo).MakeByRefType(), typeof(int).MakeByRefType() });
+            var take = AccessTools.Method(tally, "Take");
+            if (scopeMethods.Any(m => m == null) || canHaul == null || take == null)
                 throw new MissingMethodException("[KanbanStockpile] Reworked planning methods have changed.");
 
             var capacityMethods = new List<MethodInfo>();
@@ -81,9 +94,12 @@ namespace KanbanStockpile
                     finalizer: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(EndPlanning)));
             foreach (var method in work.GetMethods(BindingFlags.Static | BindingFlags.NonPublic).Where(m => m.Name == "TryPlanPickup"))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(BeginPlanning)),
+                    postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(PickupPlanned)),
                     finalizer: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(EndPlanning)));
             harmony.Patch(AccessTools.Method(work, "BatchJob"), postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(BatchCreated)));
-            harmony.Patch(AccessTools.Method(plan, "Fill"), prefix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(Fill)));
+            harmony.Patch(take, prefix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(Take)));
+            harmony.Patch(AccessTools.Method(plan, "ReserveCarriedCargo"),
+                prefix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(PlanStarted)));
             Type driver = AccessTools.TypeByName("Dreadarm.PickUpAndHaul.Hauling.JobDriver_BatchHaul");
             harmony.Patch(AccessTools.Method(driver, "TryMakePreToilReservations"),
                 postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(Reserved)));
@@ -93,8 +109,7 @@ namespace KanbanStockpile
                 finalizer: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(EndPlanning)));
             foreach (var method in capacityMethods)
                 harmony.Patch(method, transpiler: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(CapacityTranspiler)));
-            harmony.Patch(merge, postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(MergePostfix)));
-            harmony.Patch(mergeJob, postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(MergeFallbackPostfix)));
+            harmony.Patch(canHaul, postfix: new HarmonyMethod(typeof(PickUpAndHaulReworked), nameof(MergePostfix)));
             Log.Message("[KanbanStockpile] Patched Pick Up And Haul Reworked planning and delivery capacity ("
                 + capacityMethods.Count + " methods).");
         }
@@ -104,11 +119,13 @@ namespace KanbanStockpile
             internal int depth;
             internal Pawn pawn;
             internal object plan;
+            internal LocalTargetInfo mergeTarget;
         }
 
         public static void BeginPlanning(Pawn pawn, out PlanningState __state)
         {
-            __state = new PlanningState { depth = planningDepth, pawn = planningPawn, plan = activePlan };
+            __state = new PlanningState { depth = planningDepth, pawn = planningPawn, plan = activePlan, mergeTarget = pickupMergeTarget };
+            pickupMergeTarget = LocalTargetInfo.Invalid;
             planningDepth++;
             planningPawn = pawn;
             if (__state.depth == 0) activePlan = null;
@@ -118,6 +135,7 @@ namespace KanbanStockpile
         {
             planningDepth = __state.depth;
             planningPawn = __state.pawn;
+            pickupMergeTarget = __state.mergeTarget;
             if (__state.depth == 0) activePlan = __state.plan;
             return __exception;
         }
@@ -131,7 +149,7 @@ namespace KanbanStockpile
         public static void BatchCreated(Pawn pawn, ref Job __result)
         {
             if (__result == null || activePlan == null || planTargets(activePlan) != __result.targetQueueA) return;
-            var deliveries = allocations.GetOrCreateValue(activePlan);
+            var deliveries = Deliveries(activePlan);
             if (!UsefulBatch(__result, deliveries)) { __result = null; return; }
             jobPlans.Remove(__result);
             jobPlans.Add(__result, deliveries);
@@ -183,23 +201,10 @@ namespace KanbanStockpile
         public static void Extended(JobDriver __instance, bool __result)
         {
             if (__result && activePlan != null)
-                ReworkedDeliveries.Current?.Commit(__instance.pawn, allocations.GetOrCreateValue(activePlan));
+                ReworkedDeliveries.Current?.Commit(__instance.pawn, Deliveries(activePlan));
         }
 
-        public static bool Fill(object __instance, Thing thing, IntVec3 cell, int count, ref int __result)
-        {
-            activePlan = __instance;
-            if (!cell.TryGetKanbanSettings(planPawn(__instance).Map, out _, out _)) return true;
-            var local = allocations.GetOrCreateValue(__instance);
-            int capacity = ControlledCapacity(cell, planPawn(__instance).Map, thing, planPawn(__instance), local, thing.Spawned);
-            __result = Math.Min(count, capacity);
-            if (__result > 0) local.Add(new PlannedDelivery { map = planPawn(__instance).Map, cell = cell,
-                def = thing.def, stuff = thing.Stuff, source = thing, sourceId = thing.thingIDNumber, count = __result });
-            return false;
-        }
-
-        // Rewrites capacity calls in HaulingWork.Storage, TargetCapacity, both
-        // StorageCapacity overloads, and BatchPickupPlan.TryReadDestination/Fill:
+        // Rewrites native capacity calls in HaulingWork.Storage and CellCapacity:
         //   cell.GetItemStackSpaceLeftFor(map, thing.def) -> CapacityAt(cell, map, thing)
         // Nop the preceding ldfld Thing.def to retain Thing for refill checks,
         // preserving the instruction's branch labels and exception boundaries.
@@ -301,19 +306,53 @@ namespace KanbanStockpile
             return (int)Math.Min(native, Math.Max(0, available - promisedHere));
         }
 
-        // Merge targeting bypasses the native capacity helper; its vanilla
-        // fallback also skips HaulToStorageJob. Both need separate postfixes.
-        public static void MergePostfix(Pawn pawn, Thing thing, ref LocalTargetInfo target, ref int capacity, ref bool __result)
+        // CanHaul now derives merges from WorkGiver_Merge instead of a custom
+        // target finder. Clamp before TryPlanPickup records its tally quantity.
+        public static void MergePostfix(Pawn pawn, Thing thing, ref LocalTargetInfo mergeTarget, ref int mergeCount, ref bool __result)
         {
-            if (!__result || pawn == null || target.HasThing || !target.Cell.TryGetKanbanSettings(pawn.Map, out _, out _)) return;
-            capacity = Math.Min(capacity, ControlledCapacity(target.Cell, pawn.Map, thing, pawn, null, true));
-            if (capacity <= 0) { target = LocalTargetInfo.Invalid; __result = false; }
+            if (!__result || pawn == null || !mergeTarget.IsValid || mergeTarget.HasThing
+                || !mergeTarget.Cell.TryGetKanbanSettings(pawn.Map, out _, out _)) return;
+            mergeCount = Math.Min(mergeCount, ControlledCapacity(mergeTarget.Cell, pawn.Map, thing, pawn,
+                activePlan == null ? null : Deliveries(activePlan), true));
+            if (mergeCount <= 0) { mergeTarget = LocalTargetInfo.Invalid; __result = false; }
+            else pickupMergeTarget = mergeTarget;
         }
 
-        public static void MergeFallbackPostfix(Pawn pawn, Thing thing, ref Job __result)
+        public static void PickupPlanned(Pawn pawn, Thing thing, object tally, int count, bool __result)
         {
-            if (__result == null || IsHaulingJob(__result)) return;
-            HaulAIUtility_HaulToStorageJob_Patch.Postfix(ref __result, pawn, thing);
+            if (!__result || tally == null || !pickupMergeTarget.IsValid) return;
+            allocations.GetOrCreateValue(tally).Add(Delivery(pawn, thing, pickupMergeTarget.Cell, count));
+        }
+
+        private static PlannedDelivery Delivery(Pawn pawn, Thing thing, IntVec3 cell, int count) => new()
+        {
+            map = pawn.Map, cell = cell, def = thing.def, stuff = thing.Stuff,
+            source = thing, sourceId = thing.thingIDNumber, count = count
+        };
+
+        public static void PlanStarted(object __instance) => activePlan = __instance;
+
+        // Reworked moved cell allocation from BatchPickupPlan.Fill to
+        // StorageTally.Take. Keep cell promises per tally, shared by all sources.
+        public static bool Take(object __instance, Pawn pawn, Thing thing, IHaulDestination destination, int count, ref int __result)
+        {
+            if (destination is not ISlotGroupParent parent) return true;
+            var group = parent.GetSlotGroup();
+            if (group == null || !State.Get(group.Settings).Enabled) return true;
+            var local = allocations.GetOrCreateValue(__instance);
+            __result = 0;
+            foreach (var cell in group.StorageGroup?.CellsList ?? group.CellsList)
+            {
+                if (__result >= count) break;
+                if (thing.Spawned && cell == thing.Position) continue;
+                if (!StoreUtility.IsGoodStoreCell(cell, pawn.Map, thing, pawn, pawn.Faction)) continue;
+                int amount = Math.Min(count - __result,
+                    ControlledCapacity(cell, pawn.Map, thing, pawn, local, thing.Spawned));
+                if (amount <= 0) continue;
+                local.Add(Delivery(pawn, thing, cell, amount));
+                __result += amount;
+            }
+            return false;
         }
     }
 }

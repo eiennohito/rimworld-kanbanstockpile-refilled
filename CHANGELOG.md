@@ -1,3 +1,9 @@
+## 1.1.1 — Compatibility fix
+
+- Fixed the Storage tab failing to open with the updated Pick Up And Haul Reworked.
+- Updated Reworked batch hauling to respect storage limits with its current planner.
+- An optional hauling integration failing at startup no longer breaks storage controls.
+
 ## 1.1
 
 - With Pick Up And Haul Reworked, pawns can bring several stacks to storage with limits in one trip.
