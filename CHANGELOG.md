@@ -1,7 +1,8 @@
-## Unreleased
+## 1.1
 
 - With Pick Up And Haul Reworked, pawns can bring several stacks to storage with limits in one trip.
 - Other haulers count those planned deliveries toward the storage limit, including after saving and loading.
+- The mod description links both earlier KanbanStockpile versions and explains the storage controls.
 
 ## 1.0.0 — Refill
 

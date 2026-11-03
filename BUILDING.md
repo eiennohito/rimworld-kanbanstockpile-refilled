@@ -45,6 +45,17 @@ an unresolved question that requires it.
 RimWorld's uploader uses About/About.xml for the description and About/Preview.png
 for the main image. A package upload does not attach carousel screenshots.
 
+It also does not read CHANGELOG.md. In this build, `Verse.Steam.Workshop.Upload`
+passes a dated, auto-generated message to `SteamUGC.SubmitItemUpdate` when updating
+an existing item. Changing the mod version or adding a changelog file therefore
+does not supply custom Steam change notes.
+
+Valve's [SubmitItemUpdate API](https://partner.steamgames.com/doc/api/ISteamUGC#SubmitItemUpdate)
+accepts the note as its `pchChangeNote` argument. The
+[SteamCMD Workshop VDF](https://partner.steamgames.com/doc/features/workshop/implementation#SteamCmd)
+uses `changenote` for the same purpose. An uploader must submit the release text
+through that field or argument; it is separate from the item's description.
+
 This was checked against RimWorld **1.7.4995 rev309** on 2026-11-02, with
 Assembly-CSharp.dll SHA-256
 `56399b6144d9f1695f9c53d054dc82972f7ab35e68d1a19a7129f2f5860ccd21`.

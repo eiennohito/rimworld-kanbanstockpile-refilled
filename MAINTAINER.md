@@ -10,9 +10,9 @@ Keep `About/PublishedFileId.txt` in packages so an upload updates that item.
 The package ID is `eiennohito.kanbanstockpile.refill`. RimWorld's uploader takes
 the description from `About/About.xml`; it is also shown in the game's mod list.
 
-Reworked batching is listed under Unreleased in CHANGELOG.md. The description
-in About/About.xml includes that change. Check the installed and published
-versions when selecting the next release package.
+Release 1.1 adds Reworked batching. About/About.xml records version 1.1; the
+assembly version is 1.1.0.0. The release notes are the 1.1 section of CHANGELOG.md.
+Check the installed and published versions when selecting a release package.
 
 From the workspace root:
 
@@ -27,6 +27,32 @@ Builds produce a validated unpacked mod under `outputs/mods/`. Installation
 replaces local copies in the configured RimSort instance and retains rollback
 backups. It does not change the active mod list or update Workshop. Publish the
 selected package through RimWorld's uploader when making a release.
+
+## Steam change notes
+
+Uploading CHANGELOG.md does not publish its contents in Steam's Change Notes.
+The inspected RimWorld uploader submits a dated, auto-generated update message
+instead. BUILDING.md records the code and API evidence.
+
+To publish the 1.1 notes with the package, use an uploader that accepts a change
+note. Valve's [SteamCMD upload instructions](https://partner.steamgames.com/doc/features/workshop/implementation#SteamCmd)
+support a `changenote` field in a Workshop VDF. For this item, set:
+
+- `appid`: `294100`
+- `publishedfileid`: `3832323892`, to update the existing item
+- `contentfolder`: the absolute package path printed by `tools/rw latest kanban-refilled`
+- `changenote`: the text of the 1.1 entry in CHANGELOG.md, with a plain `1.1` heading
+- `description`: the text inside About/About.xml's description element, when updating the description too
+
+Run `steamcmd +login ACCOUNT +workshop_build_item /absolute/path/to/release.vdf +quit`
+with the owning Steam account. This command publishes the supplied files and
+metadata. Keep an upload VDF in leased session scratch, outside the mod package.
+Existing fields omitted from the VDF are left unchanged.
+
+After a successful upload, check the item's
+[Change Notes](https://steamcommunity.com/sharedfiles/filedetails/changelog/3832323892).
+The 1.1 text should appear there as the update note, separately from the main
+description. The owner-only controls and a live upload were not tested here.
 
 ## Verification notes — 2026-11-03
 
