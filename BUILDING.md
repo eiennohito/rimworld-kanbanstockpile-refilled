@@ -1,7 +1,22 @@
 # Building and testing
 
-These instructions are for contributors using the RimWorld modding workspace
-that contains this checkout. Run the commands from the workspace root.
+Refilled is an independent Git repository. Clone it into
+`projects/kanban-refilled/` in a checkout of the
+[shared RimWorld modding tooling](https://github.com/eiennohito/rimworld-mods);
+it is discovered automatically from `mod.toml`, with no submodule or registration
+step. You only need to clone the mods you want to work on.
+
+Follow the tooling repository's [setup guide](https://github.com/eiennohito/rimworld-mods/blob/main/docs/building.md) to configure your own game
+and Workshop paths and run `tools/rw setup`. Run the commands below from the
+workspace root. The tooling is a development dependency; players use the built
+mod with RimWorld and Harmony.
+
+```sh
+git clone https://github.com/eiennohito/rimworld-mods.git
+cd rimworld-mods
+mkdir -p projects
+git clone https://github.com/eiennohito/rimworld-kanbanstockpile-refilled.git projects/kanban-refilled
+```
 
 ## Requirements
 
