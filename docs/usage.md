@@ -27,9 +27,11 @@ Continued; their saved storage settings carry over. RimWorld may warn about the
 changed mod list when replacing a predecessor.
 
 With **Pick Up And Haul Reworked**, pawns can bring several stacks for limited
-storage in one trip, including food, hay and cloth. With original PUAH or Mlie's
-version, storage with limits uses ordinary hauling. Construction deliveries
+storage in one trip, including food, hay and cloth. Construction deliveries
 are unchanged.
+
+With **Pick Up and Haul - Continued by Zzyxzz**, storage with limits uses ordinary
+hauling. Storage set to **Off** keeps Continued's inventory batching.
 
 Multiplayer is not supported. After loading a save, a partly filled stack may
 refill once before it resumes waiting for the chosen threshold.

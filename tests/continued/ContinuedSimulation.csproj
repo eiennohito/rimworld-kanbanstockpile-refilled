@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(WorkspaceRoot)/tools/dotnet/RimWorld17.props" />
+  <PropertyGroup>
+    <AssemblyName>RefilledContinuedSimulation</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(WorkspaceRoot)/tools/dotnet/testing/Diagnostics.cs" />
+    <Compile Include="Scenario.cs" />
+  </ItemGroup>
+</Project>

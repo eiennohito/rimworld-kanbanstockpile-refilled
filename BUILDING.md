@@ -17,8 +17,22 @@ Test fixtures are excluded from the package.
 
 The fixtures in `tests/runtime/` check storage settings, refill quantities,
 incoming deliveries and the optional Reworked adapter against real game types
-in a headless host. They do not simulate a pawn's complete hauling route.
+in a headless host, plus Continued's capacity adapter when it is loaded. They
+do not simulate a pawn's complete hauling route.
 [Implementation notes](DESIGN.md) describe the rules, work costs and test limits.
+
+For Pick Up and Haul - Continued by Zzyxzz, the `continued` suite generates a
+colony and runs actual pickup and delivery jobs. It checks inventory batching
+with Refilled Off, refill thresholds, ordinary hauling into limited storage and
+competing pawn reservations. With the continuation installed:
+
+```sh
+tools/rw test kanban-refilled --suite continued --with zzyxzz.pickupandhaulreworked
+```
+
+Use `--with-mod PATH` instead of `--with` for a local runtime copy in the workspace.
+The fixture is in `tests/continued/`; it runs headless and does not cover other
+hauling add-ons, Combat Extended, caravans or save/load during an active haul.
 
 To check a changed control's appearance, the screenshot fixture is:
 

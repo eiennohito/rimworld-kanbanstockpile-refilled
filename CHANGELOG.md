@@ -1,3 +1,7 @@
+## Unreleased
+
+- Recognize Pick Up and Haul - Continued by Zzyxzz. Storage with limits uses ordinary hauling; storage set to Off keeps inventory batching.
+
 ## 1.1.1 — Compatibility fix
 
 - Fixed the Storage tab failing to open with the updated Pick Up And Haul Reworked.

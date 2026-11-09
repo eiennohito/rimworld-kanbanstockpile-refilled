@@ -90,7 +90,7 @@ overload caps the merge count before `TryPlanPickup` records its tally;
 `TryPlanPickup` then retains the destination promise. A core postfix on
 `WorkGiver_Merge.JobOnThing` limits native merge jobs, including Reworked's
 fallback and pending merge jobs. This avoids forcing a vanilla haul for each
-stack of light materials. The original/Mlie PUAH adapter is unchanged.
+stack of light materials.
 
 Successful batch reservations commit the planned destinations to a game
 component. Batch extensions replace the pawn's plan, including destinations for
@@ -143,6 +143,33 @@ failure verifies partial-patch rollback while the core Storage tab patch remains
 The small map has storage grids but no pathfinder: a fixture-only prefix passes
 no carrier to native cell acceptance checks, excluding reachability. It does not
 simulate a pawn walking a complete hauling route or render the Storage tab.
+
+## Pick Up and Haul - Continued
+
+Zzyxzz's continuation uses package ID `Zzyxzz.PickUpAndHaulReworked`, distinct
+from Dreadarm's Reworked. It shares the original PUAH `CapacityAt` adapter:
+controlled storage reports zero inventory capacity, causing its work giver to
+fall back to vanilla hauling. Refilled's core patches then cap that job's count
+and account for incoming deliveries. Off and uncontrolled cells retain native
+inventory capacity. The adapter adds no periodic work.
+
+Verified on RimWorld `1.7.5000 rev1275` with source-built Continued 0.4.1,
+[upstream commit b4e9834](https://github.com/Zzyxz/RimWorld-PickUpAndHaulContinued/commit/b4e9834060fd7f1daaf673979c62a86910fc1ca9).
+Only its project references were adapted to build against the installed game
+and Harmony; its gameplay source was unchanged. The Workshop binary itself was
+not used.
+
+The runtime suite checks adapter installation, controlled-cell rejection,
+threshold handling and unchanged Off/uncontrolled capacity. The separate
+`continued` suite runs a generated colony: a pawn batches two stacks into
+uncontrolled storage, then refills a controlled stack from 30 to 60 steel while
+a second pawn is prevented from reserving an overfilling delivery. It also checks
+that a waiting stack at 40 stays untouched with a 50% threshold. Both suites
+exit normally with Steam disabled and audio muted. This does not establish
+compatibility with other hauling add-ons or interrupted/save-loaded jobs.
+
+The historical original/Mlie adapter remains present but was not exercised by
+these Continued tests.
 
 ## Source and license
 

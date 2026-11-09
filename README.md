@@ -17,6 +17,9 @@ and **Refill From** to choose when refilling starts. With one stack per item,
 For example, a 60-steel stack at 50% starts refilling at 30 steel or fewer.
 Deliveries already on their way count toward the limit.
 
+With Pick Up and Haul - Continued, storage with limits uses ordinary hauling;
+storage set to Off keeps inventory batching.
+
 ![Storage controls](Screenshots/01-storage-controls.png)
 
 [Controls, compatibility and limits](docs/usage.md) · [Building and testing](BUILDING.md)

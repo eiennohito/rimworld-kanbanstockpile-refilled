@@ -25,6 +25,7 @@
     <li>Dreadarm.PickUpAndHaul</li>
     <li>Mehni.PickUpAndHaul</li>
     <li>Mlie.PickUpAndHaul</li>
+    <li>Zzyxzz.PickUpAndHaulReworked</li>
   </loadAfter>
   <description>Set how many stacks of each item a stockpile or shelf holds, and when pawns refill them. With one stack per item, you can also set its size.
 
@@ -41,6 +42,8 @@ Storage controls:
 For a 60-steel stack at 50%, pawns start refilling at 30 steel or fewer. They continue above that threshold and skip small final top-ups. Deliveries already on their way count toward the limit.
 
 With Pick Up And Haul Reworked, pawns can bring several stacks for limited storage in one trip. Construction deliveries are unchanged. Works with stockpiles, vanilla shelves and Adaptive Storage.
+
+With Pick Up and Haul - Continued by Zzyxzz, storage with limits uses ordinary hauling. Storage set to Off keeps Continued's inventory batching.
 
 RimWorld 1.7 only. Enable Refilled in place of either predecessor; saved storage settings carry over. Multiplayer is not supported.
 

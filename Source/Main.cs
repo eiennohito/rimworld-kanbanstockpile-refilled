@@ -24,7 +24,8 @@ namespace KanbanStockpile
                     new Harmony(harmony.Id + ".reworked"), PickUpAndHaulReworked.ApplyPatch,
                     ex => { PickUpAndHaulReworked.Reset(); Log.Error("[KanbanStockpile] Reworked integration disabled: " + ex); });
             }
-            else if (Loaded("Mehni.PickUpAndHaul") || Loaded("Mlie.PickUpAndHaul"))
+            else if (Loaded("Mehni.PickUpAndHaul") || Loaded("Mlie.PickUpAndHaul")
+                || Loaded("Zzyxzz.PickUpAndHaulReworked"))
             {
                 IsPickUpAndHaulLoaded = TryApplyIntegration(
                     new Harmony(harmony.Id + ".puah"), PickUpAndHaul_WorkGiver_HaulToInventory_Patch.ApplyPatch,
