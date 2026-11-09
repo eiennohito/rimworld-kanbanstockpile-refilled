@@ -10,6 +10,8 @@ in place of either predecessor; their saved storage settings carry over.
 
 [Refilled on Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3832323892)
 
+[Source code on GitHub](https://github.com/eiennohito/rimworld-kanbanstockpile-refilled)
+
 ## Storage controls
 
 Select a stockpile or storage building and open its Storage tab.

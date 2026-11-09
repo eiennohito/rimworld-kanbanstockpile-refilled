@@ -3,6 +3,7 @@
   <name>KanbanStockpile-Refilled</name>
   <author>eiennohito</author>
   <packageId>eiennohito.kanbanstockpile.refill</packageId>
+  <url>https://github.com/eiennohito/rimworld-kanbanstockpile-refilled</url>
   <supportedVersions>
     <li>1.7</li>
   </supportedVersions>
@@ -42,6 +43,9 @@ For a 60-steel stack at 50%, pawns start refilling at 30 steel or fewer. They co
 With Pick Up And Haul Reworked, pawns can bring several stacks for limited storage in one trip. Construction deliveries are unchanged. Works with stockpiles, vanilla shelves and Adaptive Storage.
 
 RimWorld 1.7 only. Enable Refilled in place of either predecessor; saved storage settings carry over. Multiplayer is not supported.
+
+Source code (MIT license):
+https://github.com/eiennohito/rimworld-kanbanstockpile-refilled
 
 Original mod by ubergarm; continued by Endag, with contributions from Tmq5521 and bananasss00.</description>
   <modVersion>1.1.1</modVersion>
