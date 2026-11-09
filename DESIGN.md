@@ -129,9 +129,8 @@ the existing capacity calculation and its local promises; uncontrolled storage
 and containers retain Reworked's native tally. This adds no tick work or source
 search. Merge jobs also apply the existing refill/minimum-delivery checks.
 
-Inspected installed Reworked 1.7 DLL on 2026-11-04: SHA-256
-`317ab30c2b5a51341b4f80aefe3691b6fa3a81ca9903b03853905625d737953a`,
-public API contract 3; RimWorld `1.7.4998 rev1299`. The unchanged public API
+Inspected installed Reworked 1.7 on 2026-11-04, with public API contract 3
+and RimWorld `1.7.4998 rev1299`. The unchanged public API
 version does not guarantee stable internal planning methods. The current DLL
 removed `TryFindMergeTarget` and `BatchPickupPlan.Fill` and moved cargo ownership
 from `CargoState` to `CargoComp`.

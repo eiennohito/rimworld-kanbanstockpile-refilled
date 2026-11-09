@@ -1,28 +1,10 @@
 # Building and testing
 
-Refilled is an independent Git repository. Clone it into
-`projects/kanban-refilled/` in a checkout of the
-[shared RimWorld modding tooling](https://github.com/eiennohito/rimworld-mods);
-it is discovered automatically from `mod.toml`, with no submodule or registration
-step. You only need to clone the mods you want to work on.
+Development uses the [shared RimWorld workspace tooling](https://github.com/eiennohito/rimworld-mods/tree/main/tools).
+Its guide covers prerequisites, initial configuration and working with Codex or
+Claude Code. Clone this mod into `projects/kanban-refilled/` inside that workspace.
 
-Follow the tooling repository's [setup guide](https://github.com/eiennohito/rimworld-mods/blob/main/docs/building.md) to configure your own game
-and Workshop paths and run `tools/rw setup`. Run the commands below from the
-workspace root. The tooling is a development dependency; players use the built
-mod with RimWorld and Harmony.
-
-```sh
-git clone https://github.com/eiennohito/rimworld-mods.git
-cd rimworld-mods
-mkdir -p projects
-git clone https://github.com/eiennohito/rimworld-kanbanstockpile-refilled.git projects/kanban-refilled
-```
-
-## Requirements
-
-RimWorld 1.7, the .NET 10 SDK and Harmony's 1.7 assemblies are required.
-`tools/dotnet/RimWorld17.props` supplies references to the original game
-assemblies. The workspace supports 1.7 only.
+From the workspace root:
 
 ```sh
 tools/rw build kanban-refilled
@@ -30,57 +12,21 @@ tools/rw test kanban-refilled --suite runtime
 tools/rw test kanban-refilled --suite runtime --with dreadarm.pickupandhaul
 ```
 
-The runtime fixture is in `tests/runtime/`. It checks storage settings, refill
-quantities, incoming deliveries and the optional Reworked adapter using real
-game types. It does not simulate a complete pawn hauling route. See DESIGN.md
-for the rules under test, implementation costs and inspected binary versions.
+The build produces an unpacked mod in `outputs/mods/kanban-refilled/`.
+Test fixtures are excluded from the package.
 
-The build prints a validated unpacked package under `outputs/mods/`. Compiler
-output and test hosts are leased session files. Test fixtures and screenshots
-are not included in the runtime package. Builds do not install or publish the
-mod. The owner's installation and Workshop steps are in MAINTAINER.md.
+The fixtures in `tests/runtime/` check storage settings, refill quantities,
+incoming deliveries and the optional Reworked adapter against real game types
+in a headless host. They do not simulate a pawn's complete hauling route.
+[Implementation notes](DESIGN.md) describe the rules, work costs and test limits.
 
-## UI captures
-
-The existing screenshots show native storage controls. Capture new ones when a
-control changes or a specific visual question needs checking:
+To check a changed control's appearance, the screenshot fixture is:
 
 ```sh
 tools/rw test kanban-refilled --suite screenshots
 ```
 
-The fixture in `tests/screenshots/` uses the shared isolated launcher, a private
-virtual display and muted no-device audio. It produces documentation images;
-it does not verify hauling behavior. Use headless checks for quantity and
-compatibility changes, and do not repeat them in a graphical scenario without
-an unresolved question that requires it.
+This requires the shared tooling's graphical dependencies. It captures the
+Storage tab and mod options; it does not verify hauling behavior.
 
-## Workshop uploader behavior
-
-RimWorld's uploader uses About/About.xml for the description and About/Preview.png
-for the main image. A package upload does not attach carousel screenshots.
-
-It also does not read CHANGELOG.md. In this build, `Verse.Steam.Workshop.Upload`
-passes a dated, auto-generated message to `SteamUGC.SubmitItemUpdate` when updating
-an existing item. Changing the mod version or adding a changelog file therefore
-does not supply custom Steam change notes.
-
-Valve's [SubmitItemUpdate API](https://partner.steamgames.com/doc/api/ISteamUGC#SubmitItemUpdate)
-accepts the note as its `pchChangeNote` argument. The
-[SteamCMD Workshop VDF](https://partner.steamgames.com/doc/features/workshop/implementation#SteamCmd)
-uses `changenote` for the same purpose. An uploader must submit the release text
-through that field or argument; it is separate from the item's description.
-
-This was checked against RimWorld **1.7.4995 rev309** on 2026-11-02, with
-Assembly-CSharp.dll SHA-256
-`56399b6144d9f1695f9c53d054dc82972f7ab35e68d1a19a7129f2f5860ccd21`.
-`Verse.Steam.Workshop.SetWorkshopItemDataFrom` calls `SetItemPreview` and
-`SetItemContent`, with no additional-preview API calls. This is evidence about
-that binary; the owner-only Workshop image manager was not inspected.
-
-Automation for additional images would use `AddItemPreviewFile` on an item
-update handle, then `SubmitItemUpdate`. Query existing attachments and use
-`UpdateItemPreviewFile` to replace one, rather than appending duplicates.
-The [Steamworks preview API](https://partner.steamgames.com/doc/api/ISteamUGC#AddItemPreviewFile)
-documents the accepted formats and size limit. The existing screenshots are PNGs
-below 167 KB each. Owner instructions for manual uploads are in MAINTAINER.md.
+[Release checklist](MAINTAINER.md)
