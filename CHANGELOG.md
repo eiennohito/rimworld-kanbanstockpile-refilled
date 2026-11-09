@@ -1,3 +1,7 @@
+## 1.1.3 — Adaptive Storage compatibility
+
+- Max similar now follows changes to Adaptive Storage's slot limit.
+
 ## 1.1.2 — Continued compatibility
 
 - Fixed storage limits being bypassed with Pick Up and Haul - Continued by Zzyxzz.

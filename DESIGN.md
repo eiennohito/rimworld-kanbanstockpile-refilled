@@ -143,6 +143,8 @@ failure verifies partial-patch rollback while the core Storage tab patch remains
 The small map has storage grids but no pathfinder: a fixture-only prefix passes
 no carrier to native cell acceptance checks, excluding reachability. It does not
 simulate a pawn walking a complete hauling route or render the Storage tab.
+The separate `hauling` suite uses a generated map and real pickup/unloading
+drivers; see the compatibility coverage below.
 
 ## Pick Up and Haul - Continued
 
@@ -168,8 +170,47 @@ that a waiting stack at 40 stays untouched with a 50% threshold. Both suites
 exit normally with Steam disabled and audio muted. This does not establish
 compatibility with other hauling add-ons or interrupted/save-loaded jobs.
 
-The historical original/Mlie adapter remains present but was not exercised by
-these Continued tests.
+The original and Continued planner do not retain a destination-to-quantity plan
+through their separate pickup and unloading jobs. Replacing the zero-capacity
+fallback with a quantity cap alone would leave cross-pawn promises and unloading
+unprotected. Preserving their inventory batching for limited storage needs an
+adapter covering that lifecycle; Reworked's adapter depends on different APIs.
+
+## Compatibility coverage
+
+Checked on RimWorld `1.7.5000 rev1275` on 2026-11-10:
+
+| Dependency | Runtime used | Complete hauling checks |
+| --- | --- | --- |
+| Adaptive Storage Framework | Installed 1.6 Workshop binaries | Vanilla hauling; all three PUAH variants below |
+| Pick Up And Haul Reworked | Installed 1.7 Workshop binary, API contract 3 | Inventory batches into limited stockpiles, shelves and Adaptive Storage |
+| Original Pick Up And Haul | Installed 1.6 Workshop binary | Off batching; limited-storage fallback on all three storage types |
+| Zzyxzz's Pick Up and Haul - Continued | Source-built 0.4.1, commit b4e9834 above | Off batching; limited-storage fallback on all three storage types |
+
+The `hauling` suite exercises stockpiles, vanilla shelves and a shelf using the
+installed Adaptive Storage building class. It runs real pathfinding, reservations,
+pickup and unloading. It checks Off batching, steel refill thresholds and size
+limits, a competing pawn, and two-stack limits for cloth, hay and meals. Reworked
+must batch both allowed stacks in one trip rather than falling back to ordinary
+hauling. See BUILDING.md for commands and the fixture's limits.
+
+The original PUAH 1.6 Workshop binary loads on 1.7 and uses the same capacity
+adapter as Continued. Its capacity-patch installation, Off behavior and complete
+ordinary-hauling fallback are covered. The historical `Mlie.PickUpAndHaul` alias
+and Stockpile Ranking integrations are not covered by this matrix; they are not
+advertised in the player compatibility list.
+
+Adaptive Storage's 1.6 Workshop binaries are tested without rebuilding or changing
+their supported-version metadata. The fixture instantiates its actual building
+class, including adjustable slot limits. `StorageControls.Capacity` includes
+`CurrentSlotLimit` in its cache key: a two-cell shelf can change from six slots
+to five while its largest per-cell capacity stays three. Caching only that
+largest value leaves the Max similar slider stale.
+
+Selecting a storage parent resolves the optional capacity method and slot-limit
+property once. Drawing the slider reads the slot-limit property; a changed parent,
+cell count, largest cell capacity or slot limit recomputes capacity by visiting
+the parent's cells. This adds no map scan or periodic work.
 
 ## Source and license
 

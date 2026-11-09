@@ -17,9 +17,34 @@ Test fixtures are excluded from the package.
 
 The fixtures in `tests/runtime/` check storage settings, refill quantities,
 incoming deliveries and the optional Reworked adapter against real game types
-in a headless host, plus Continued's capacity adapter when it is loaded. They
+in a headless host, plus the original/Continued capacity adapter when loaded. They
 do not simulate a pawn's complete hauling route.
 [Implementation notes](DESIGN.md) describe the rules, work costs and test limits.
+
+The `hauling` suite generates a colony and runs complete pickup and unloading
+jobs. It uses the loaded hauling mod's actual work giver, or vanilla hauling
+when none is loaded. It tests stockpiles and shelves, plus a building using the
+installed Adaptive Storage class when that framework is loaded:
+
+```sh
+tools/rw test kanban-refilled --suite hauling --with dreadarm.pickupandhaul --with adaptive.storage.framework
+tools/rw test kanban-refilled --suite hauling --with mehni.pickupandhaul --with adaptive.storage.framework
+tools/rw test kanban-refilled --suite hauling --with zzyxzz.pickupandhaulreworked --with adaptive.storage.framework
+```
+
+Checks cover Off batching, refill thresholds, a competing pawn, the 60-steel
+size limit, and a two-stack limit for cloth, hay and meals. With Reworked,
+limited storage must retain inventory batching and deliver two stacks in one
+trip. Original PUAH and Continued use their documented ordinary-hauling fallback
+for limited storage. A package ID without its actual runtime types cannot pass
+the optional integration checks. Supplies retained by the native unloading policy
+are excluded from the remaining hauling cargo.
+
+These headless routes do not test rendering, construction, Combat Extended,
+caravans or a full save/reload during an active haul. The runtime suite separately
+checks delivery-promise serialization. The Adaptive Storage fixture uses the
+game's shelf definition with the framework's real building class; it does not
+cover every furniture pack or per-cell capacity configuration.
 
 For Pick Up and Haul - Continued by Zzyxzz, the `continued` suite generates a
 colony and runs actual pickup and delivery jobs. It checks inventory batching

@@ -13,6 +13,12 @@ conflicts = ["endag.kanbanstockpile", "local.kanbanstockpile.refill"]
 [tests.runtime]
 args = []
 
+[tests.hauling]
+project = "tests/hauling/Hauling.csproj"
+assembly = "RefilledHaulingChecks"
+package_id = "local.refilled.hauling-checks"
+args = ["-RefilledHaulingChecks"]
+
 [tests.continued]
 project = "tests/continued/ContinuedSimulation.csproj"
 assembly = "RefilledContinuedSimulation"

@@ -248,26 +248,28 @@ public static partial class Diagnostics
             }
             Check("Slider preserves every integer across nonlinear scale", 1, roundtrip ? 1 : 0);
 
-            if (ModLister.GetActiveModWithIdentifier("Zzyxzz.PickUpAndHaulReworked") != null)
+            if (ModLister.GetActiveModWithIdentifier("Zzyxzz.PickUpAndHaulReworked") != null
+                || ModLister.GetActiveModWithIdentifier("Mehni.PickUpAndHaul") != null
+                || ModLister.GetActiveModWithIdentifier("Mlie.PickUpAndHaul") != null)
             {
                 var continued = AccessTools.TypeByName("PickUpAndHaul.WorkGiver_HaulToInventory");
                 var continuedCapacity = AccessTools.Method(continued, "CapacityAt");
-                Check("Continued integration initializes", 1,
+                Check("Legacy PUAH integration initializes", 1,
                     (bool)AccessTools.Field(loader, "IsPickUpAndHaulLoaded").GetValue(null) ? 1 : 0);
-                Check("Continued capacity method has Refilled's adapter", 1,
+                Check("Legacy PUAH capacity method has Refilled's adapter", 1,
                     Harmony.GetPatchInfo(continuedCapacity)?.Owners.Contains("eiennohito.kanbanstockpile.refill.puah") == true ? 1 : 0);
                 int ContinuedCapacity(IntVec3 target) => (int)continuedCapacity.Invoke(null, new object[] { source, target, map });
                 Configure(100, 1, 70);
                 stored.stackCount = 60;
-                Check("Continued inventory planning defers limited storage to vanilla hauling", 0, ContinuedCapacity(cell));
+                Check("Legacy PUAH inventory planning defers limited storage to ordinary hauling", 0, ContinuedCapacity(cell));
                 Configure(70, 1, 70);
-                Check("Continued inventory planning does not bypass refill thresholds", 0, ContinuedCapacity(cell));
+                Check("Legacy PUAH inventory planning does not bypass refill thresholds", 0, ContinuedCapacity(cell));
                 Configure(100, 0, 0);
-                Check("Continued retains native capacity when Refilled is Off",
+                Check("Legacy PUAH retains native capacity when Refilled is Off",
                     cell.GetItemStackSpaceLeftFor(map, source.def), ContinuedCapacity(cell));
                 Configure(100, 1, 70);
                 var ordinaryCell = new IntVec3(0, 0, 0);
-                Check("Continued retains native capacity outside controlled storage",
+                Check("Legacy PUAH retains native capacity outside controlled storage",
                     ordinaryCell.GetItemStackSpaceLeftFor(map, source.def), ContinuedCapacity(ordinaryCell));
             }
 

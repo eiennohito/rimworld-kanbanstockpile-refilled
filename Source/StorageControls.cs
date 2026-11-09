@@ -16,7 +16,9 @@ namespace KanbanStockpile
         static string buffer = "";
         static bool wasFocused;
         static ISlotGroupParent capacityParent;
-        static int capacityCells, capacityPerCell, cachedCapacity;
+        static int capacityCells, capacityPerCell, capacitySlotLimit, cachedCapacity;
+        static PropertyInfo adaptiveSlotLimit;
+        static MethodInfo adaptiveCellCapacity;
 
         static IStoreSettingsParent Parent(ITab_Storage tab) => selected.GetValue(tab) as IStoreSettingsParent;
         static void Commit(ref KanbanSettings settings)
@@ -63,17 +65,26 @@ namespace KanbanStockpile
         {
             var cells = parent.AllSlotCellsList();
             int perCell = parent is Building building ? Math.Max(1, building.MaxItemsInCell) : 1;
-            if (parent == capacityParent && cells.Count == capacityCells && perCell == capacityPerCell) return cachedCapacity;
+            bool sameParent = parent == capacityParent;
+            if (!sameParent)
+            {
+                adaptiveSlotLimit = AccessTools.Property(parent.GetType(), "CurrentSlotLimit");
+                adaptiveCellCapacity = AccessTools.Method(parent.GetType(), "GetMaxItemsForCell",
+                    new[] { typeof(IntVec3).MakeByRefType() });
+            }
+            // Adaptive Storage can change its total slot limit without changing
+            // the largest per-cell capacity (e.g. a two-cell shelf: 6 -> 5).
+            int slotLimit = adaptiveSlotLimit?.PropertyType == typeof(int) ? (int)adaptiveSlotLimit.GetValue(parent) : -1;
+            if (sameParent && cells.Count == capacityCells && perCell == capacityPerCell && slotLimit == capacitySlotLimit) return cachedCapacity;
             capacityParent = parent;
             capacityCells = cells.Count;
             capacityPerCell = perCell;
+            capacitySlotLimit = slotLimit;
             long max = (long)cells.Count * perCell;
-            var adaptiveCapacity = AccessTools.Method(parent.GetType(), "GetMaxItemsForCell",
-                new[] { typeof(IntVec3).MakeByRefType() });
-            if (adaptiveCapacity != null && adaptiveCapacity.ReturnType == typeof(int))
+            if (adaptiveCellCapacity != null && adaptiveCellCapacity.ReturnType == typeof(int))
             {
                 max = 0;
-                for (int i = 0; i < cells.Count; i++) max += Math.Max(0, (int)adaptiveCapacity.Invoke(parent, new object[] { cells[i] }));
+                for (int i = 0; i < cells.Count; i++) max += Math.Max(0, (int)adaptiveCellCapacity.Invoke(parent, new object[] { cells[i] }));
             }
             return cachedCapacity = (int)Math.Min(int.MaxValue, Math.Max(1, max));
         }
