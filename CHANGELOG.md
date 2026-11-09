@@ -1,6 +1,7 @@
-## Unreleased
+## 1.1.2 — Continued compatibility
 
-- Recognize Pick Up and Haul - Continued by Zzyxzz. Storage with limits uses ordinary hauling; storage set to Off keeps inventory batching.
+- Fixed storage limits being bypassed with Pick Up and Haul - Continued by Zzyxzz.
+- Storage with limits uses ordinary hauling; storage set to Off keeps Continued's inventory batching.
 
 ## 1.1.1 — Compatibility fix
 
