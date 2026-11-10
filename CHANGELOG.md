@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.4 — Inventory hauling
 
 - Pick Up And Haul and Pick Up and Haul - Continued can bring several stacks to limited storage in one trip.
 - Ordinary inventory unloading respects storage limits for items brought back by a pawn.
