@@ -261,7 +261,8 @@ public static partial class Diagnostics
                 int ContinuedCapacity(IntVec3 target) => (int)continuedCapacity.Invoke(null, new object[] { source, target, map });
                 Configure(100, 1, 70);
                 stored.stackCount = 60;
-                Check("Legacy PUAH inventory planning defers limited storage to ordinary hauling", 0, ContinuedCapacity(cell));
+                AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(source, (sbyte)0);
+                Check("Legacy PUAH inventory planning uses the remaining controlled capacity", 10, ContinuedCapacity(cell));
                 Configure(70, 1, 70);
                 Check("Legacy PUAH inventory planning does not bypass refill thresholds", 0, ContinuedCapacity(cell));
                 Configure(100, 0, 0);
@@ -271,6 +272,58 @@ public static partial class Diagnostics
                 var ordinaryCell = new IntVec3(0, 0, 0);
                 Check("Legacy PUAH retains native capacity outside controlled storage",
                     ordinaryCell.GetItemStackSpaceLeftFor(map, source.def), ContinuedCapacity(ordinaryCell));
+
+                var inventoryAdapter = assembly.GetType("KanbanStockpile.InventoryHauling");
+                var batchDef = DefDatabase<JobDef>.GetNamed("HaulToInventory");
+                AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(pawn, (sbyte)0);
+                pawn.carryTracker.innerContainer.Clear();
+                pawn.inventory = new Pawn_InventoryTracker(pawn);
+                pawn.jobs.curJob = null;
+                Configure(100, 1, 70);
+                var batch = new Job { def = batchDef, targetB = cell,
+                    targetQueueA = new List<LocalTargetInfo> { source }, countQueue = new List<int> { 75 } };
+                object[] planning = { pawn, null };
+                AccessTools.Method(inventoryAdapter, "Begin").Invoke(null, planning);
+                object[] planned = { pawn, batch };
+                try { AccessTools.Method(inventoryAdapter, "Planned").Invoke(null, planned); }
+                finally { AccessTools.Method(inventoryAdapter, "End").Invoke(null, new object[] { null, planning[1] }); }
+                batch = (Job)planned[1];
+                Check("Native inventory batch is capped to the missing ten units", 10, batch.countQueue[0]);
+                var driver = (JobDriver)RuntimeHelpers.GetUninitializedObject(AccessTools.TypeByName("PickUpAndHaul.JobDriver_HaulToInventory"));
+                driver.pawn = pawn;
+                driver.job = batch;
+                pawn.jobs.curJob = batch;
+                AccessTools.Method(inventoryAdapter, "Reserved").Invoke(null, new object[] { driver, true });
+                var quantity = AccessTools.Method(deliveriesType, "IncomingQuantity");
+                int Promised() => (int)quantity.Invoke(deliveries, new object[] { map, cell, source, null });
+                Check("Legacy batch promises survive successful reservations", 10, Promised());
+                var duplicate = new Job { def = JobDefOf.HaulToCell, targetA = source, targetB = cell, count = 10 };
+                object[] duplicateArgs = { duplicate, pawn, source };
+                AccessTools.Method(assembly.GetType("KanbanStockpile.HaulAIUtility_HaulToStorageJob_Patch"), "Postfix").Invoke(null, duplicateArgs);
+                Check("A pawn cannot queue an extra ordinary haul over its own inventory promise", 1, duplicateArgs[0] == null ? 1 : 0);
+
+                string path = Path.Combine(GenFilePaths.SaveDataFolderPath, "Diagnostics", "inventory-promises.xml");
+                GameComponent saved = (GameComponent)deliveries;
+                Scribe.saver.InitSaving(path, "save");
+                Scribe_Deep.Look(ref saved, "deliveries", game);
+                Scribe.saver.FinalizeSaving();
+                saved = null;
+                Scribe.loader.InitLoading(path);
+                Scribe_Deep.Look(ref saved, "deliveries", game);
+                var directory = AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory").GetValue(Scribe.loader.crossRefs);
+                var register = AccessTools.Method(directory.GetType(), "RegisterLoaded");
+                foreach (var reference in new ILoadReferenceable[] { pawn, map, source }) register.Invoke(directory, new object[] { reference });
+                Scribe.loader.FinalizeLoading();
+                game.components.Remove((GameComponent)deliveries);
+                deliveries = saved;
+                game.components.Add(saved);
+                Check("Save/load preserves native inventory destination promises", 10, Promised());
+                batch.count = 10;
+                batch.countQueue[0] = 3;
+                Check("A queued target is not counted twice as the current target", 3, Promised());
+                pawn.jobs.curJob = null;
+                Check("Cancelled legacy batch releases all uncollected promises", 0, Promised());
+                AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(source, (sbyte)-1);
             }
 
             var adapter = assembly.GetType("KanbanStockpile.PickUpAndHaulReworked");

@@ -95,7 +95,9 @@ namespace KanbanStockpile
             if (KanbanStockpile.Settings.ReservedSimilarStackChecking && map.reservationManager != null)
             {
                 desired -= ReservationIndex.For(map.reservationManager).Incoming(group, map, cell, t, __result);
-                desired -= ReworkedDeliveries.Current?.IncomingQuantity(map, cell, t, p) ?? 0;
+                // A new pickup is additional to this pawn's inventory cargo.
+                // Only an unloading job may exclude its own existing promise.
+                desired -= ReworkedDeliveries.Current?.IncomingQuantity(map, cell, t, t.Spawned ? null : p) ?? 0;
             }
             __result.count = Math.Min(__result.count, Math.Max(0, desired));
             if (existing && settings.srt < 100)
@@ -146,21 +148,6 @@ namespace KanbanStockpile
                 }
             }
             return count >= minimum;
-        }
-    }
-
-    static class PickUpAndHaul_WorkGiver_HaulToInventory_Patch
-    {
-        public static void ApplyPatch(Harmony harmony)
-        {
-            var type = AccessTools.TypeByName("PickUpAndHaul.WorkGiver_HaulToInventory");
-            var capacity = type == null ? null : AccessTools.Method(type, "CapacityAt");
-            if (capacity == null) throw new MissingMethodException("Pick Up And Haul CapacityAt");
-            harmony.Patch(capacity, postfix: new HarmonyMethod(typeof(PickUpAndHaul_WorkGiver_HaulToInventory_Patch), nameof(CapacityAtPostfix)));
-        }
-        public static void CapacityAtPostfix(ref int __result, Thing thing, IntVec3 storeCell, Map map)
-        {
-            if (__result > 0 && storeCell.TryGetKanbanSettings(map, out _, out _)) __result = 0;
         }
     }
 

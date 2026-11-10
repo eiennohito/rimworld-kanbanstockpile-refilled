@@ -27,29 +27,22 @@
     <li>Mlie.PickUpAndHaul</li>
     <li>Zzyxzz.PickUpAndHaulReworked</li>
   </loadAfter>
-  <description>Set how many stacks of each item a stockpile or shelf holds, and when pawns refill them. With one stack per item, you can also set its size.
+  <description>Stack limits and refill thresholds for stockpiles, shelves and Adaptive Storage.
 
-Refilled continues KanbanStockpile Continued by Endag:
-https://steamcommunity.com/sharedfiles/filedetails/?id=3767756434
-Based on the original KanbanStockpile by ubergarm:
-https://steamcommunity.com/sharedfiles/filedetails/?id=2287142613
+Open the Storage tab:
+• Max similar limits stacks of each item; Off leaves hauling unchanged.
+• Refill Until sets a smaller stack size when Max similar is 1; Max Stack uses the item's usual maximum.
+• Refill From starts refilling at or below the chosen percentage; 100% allows normal top-ups.
 
-Storage controls:
-• Max similar: the number of stacks allowed for each item. Off leaves hauling unchanged.
-• Refill Until: a smaller stack size, available with one stack per item. Max Stack uses the item's usual maximum.
-• Refill From: how low supplies must get before pawns refill them. 100% allows normal top-ups.
+Pawns continue an active refill above the threshold and may skip small final top-ups.
+Incoming deliveries count toward the limit.
+Pick Up And Haul, Continued by Zzyxzz and Reworked retain inventory batching.
 
-For a 60-steel stack at 50%, pawns start refilling at 30 steel or fewer. They continue above that threshold and skip small final top-ups. Deliveries already on their way count toward the limit.
+Requires RimWorld 1.7 and Harmony.
+Enable in place of either earlier KanbanStockpile version; saved settings carry over.
+Multiplayer is not supported.
 
-With Pick Up And Haul Reworked, pawns can bring several stacks for limited storage in one trip. Construction deliveries are unchanged. Works with stockpiles, vanilla shelves and Adaptive Storage.
-
-With Pick Up and Haul - Continued by Zzyxzz, storage with limits uses ordinary hauling. Storage set to Off keeps Continued's inventory batching.
-
-RimWorld 1.7 only. Enable Refilled in place of either predecessor; saved storage settings carry over. Multiplayer is not supported.
-
-Source code (MIT license):
-https://github.com/eiennohito/rimworld-kanbanstockpile-refilled
-
-Original mod by ubergarm; continued by Endag, with contributions from Tmq5521 and bananasss00.</description>
+Details, credits and source:
+https://github.com/eiennohito/rimworld-kanbanstockpile-refilled</description>
   <modVersion>1.1.3</modVersion>
 </ModMetaData>

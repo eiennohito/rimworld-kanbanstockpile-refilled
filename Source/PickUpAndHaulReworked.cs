@@ -27,16 +27,16 @@ namespace KanbanStockpile
         private static Func<Job, bool> isHaulingJob;
         private static Func<Pawn, Thing, int> hauledCount;
         private static JobDef batchDef;
-        public static Pawn QueryPawn(Thing thing) => planningPawn ?? HolderPawn(thing);
-        public static bool IsBatchJob(Job job) => job != null && batchDef != null && job.def == batchDef;
-        public static int HauledCount(Pawn pawn, Thing thing) => Math.Min(thing.stackCount, Math.Max(0, hauledCount?.Invoke(pawn, thing) ?? 0));
+        public static Pawn QueryPawn(Thing thing) => planningPawn ?? InventoryHauling.PlanningPawn ?? HolderPawn(thing);
+        public static bool IsBatchJob(Job job) => job != null && batchDef != null && job.def == batchDef || InventoryHauling.IsBatchJob(job);
+        public static int HauledCount(Pawn pawn, Thing thing) => Math.Min(thing.stackCount, Math.Max(0, hauledCount?.Invoke(pawn, thing) ?? InventoryHauling.HauledCount(pawn, thing)));
         private static readonly MethodInfo nativeCapacity = AccessTools.Method(typeof(GridsUtility),
             nameof(GridsUtility.GetItemStackSpaceLeftFor));
         private static readonly FieldInfo thingDef = AccessTools.Field(typeof(Thing), nameof(Thing.def));
 
         public static bool IsHaulingJob(Job job)
         {
-            return isHaulingJob != null && isHaulingJob(job);
+            return isHaulingJob != null && isHaulingJob(job) || InventoryHauling.IsHaulingJob(job);
         }
 
         public static void Reset()
@@ -158,7 +158,7 @@ namespace KanbanStockpile
         // Judge the completed batch, rather than each small source separately:
         // several fragments can make one useful trip, as can other supplies
         // already included in the same route.
-        static bool UsefulBatch(Job job, List<PlannedDelivery> deliveries)
+        internal static bool UsefulBatch(Job job, List<PlannedDelivery> deliveries)
         {
             long allocated = 0, pickups = 0;
             foreach (var delivery in deliveries)

@@ -1,3 +1,8 @@
+## Unreleased
+
+- Pick Up And Haul and Pick Up and Haul - Continued can bring several stacks to limited storage in one trip.
+- Ordinary inventory unloading respects storage limits for items brought back by a pawn.
+
 ## 1.1.3 — Adaptive Storage compatibility
 
 - Max similar now follows changes to Adaptive Storage's slot limit.

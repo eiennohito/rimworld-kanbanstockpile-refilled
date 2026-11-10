@@ -1,221 +1,56 @@
-# Implementation notes
+# Development
 
-For contributors working on storage rules, compatibility and performance.
-Player instructions are in README.md and PURPOSE.md. Build and test commands
-are in BUILDING.md.
+## Building and testing
 
-## Storage controls
+Use the [shared RimWorld workspace tooling](https://github.com/eiennohito/rimworld-mods/blob/main/tools/README.md) for prerequisites and setup.
+Clone this repository into `projects/kanban-refilled/` and run from the configured workspace root:
 
-| Control | Values |
-| --- | --- |
-| Max similar | Slider: Off (0), 1, through the container's stack capacity |
-| Refill Until | Optional absolute count; visible only at Max similar = 1 |
-| Refill From | Full-width percentage slider; visible while Max similar is enabled |
-
-Max similar and Refill Until share the first row, roughly 70% / 30%. Keep the
-Max similar slider's geometry fixed across states. Reserve generous slider space
-for Off and the first few counts, then progressively compress larger counts.
-One drag switches states; wheel and keyboard steps change the count by one.
-
-Refill Until stores either no override or a positive integer. No override displays
-"Max Stack" verbatim and resolves separately for each item's effective stack
-maximum; never turn it into one fixed count for the whole storage. Focusing clears
-the displayed text for replacement. Commit on Enter or leaving the field; an empty
-entry restores Max Stack. Escape cancels the edit. Wheel changes a numeric value
-by one, without scrolling the surrounding tab. It must not pick an arbitrary item
-maximum when the value is unset; type a number to set an override first.
-
-Off bypasses all custom hauling behavior. Refill From defaults to 100%, meaning
-normal top-ups. Hidden settings are retained but do not apply. PUAH support is
-automatic. Both focus handling and wheel steps need a small wrapper around the
-game's text field; TextFieldNumeric alone does not implement this behavior.
-
-## Refill rule
-
-Let `L` be the smaller of the native and configured stack limits, and
-`R = floor(L * threshold / 100)`.
-
-Start a cycle at `count <= R`. Continue above R until full or another useful
-delivery no longer fits. Automatic minimum delivery:
-
-```text
-max(1, min(ceil(min(L, carrying capacity) / 4),
-           ceil(L * 0.15),
-           max(1, floor((L - R) / 2))))
+```sh
+tools/rw build kanban-refilled
+tools/rw test kanban-refilled --suite runtime
 ```
 
-For L=300, R=210 and carrying capacity=267, the minimum is 45. A stack at 267
-waits rather than requesting another trip for 33.
+Select additional suites from [mod.toml](mod.toml) and include dependencies relevant to the change with `--with PACKAGE_ID` or `--with-mod PATH`.
+For releases, use the shared guide's [Workshop update procedure](https://github.com/eiennohito/rimworld-mods/blob/main/tools/README.md#workshop-updates).
 
-Normal loads need no additional source search. For a small, non-urgent source,
-check nearby eligible piles within vanilla's eight-cell opportunistic pickup
-radius, stopping once the minimum is available. This is an estimate: reservations
-and accessibility can change before pickup. Low-stock deliveries and already
-carried cargo bypass the cutoff. Subtract incoming deliveries, including cargo
-already picked up, before assigning more work.
+## Architecture
 
-Cycle state is runtime-only. On first observation after load, a partial stack may
-refill once, subject to the minimum delivery rule. Afterwards the low mark starts
-new cycles. There is no load-time storage scan or cycle serialization.
+The mod adds per-storage limits to the game's existing hauling decisions and optional inventory-hauling planners.
+Settings belong to `StorageSettings` instances, so equally named zones and different maps remain independent.
 
-Live checks read stack quantities directly because
-other mods can assign stackCount without an event. Full-stack deliveries close
-cycles immediately; later consumption is observed by the next haul query.
+## Code map
 
-There are no tick callbacks or periodic scans. Storage membership is indexed by
-item definition and invalidated on grid/cell changes. The reservation index is
-rebuilt after reservation mutations, then reads live job targets and quantities.
-Off and 100% refill avoid cycle bookkeeping. Settings are keyed by StorageSettings
-instances, avoiding collisions between equally named zones or different maps.
+| File | Responsibility |
+| --- | --- |
+| [State.cs](Source/State.cs) | Settings, effective limits and revision tracking |
+| [StorageControls.cs](Source/StorageControls.cs) | Storage-tab controls and cached storage capacity, including Adaptive Storage's slot limit |
+| [RefillCycles.cs](Source/RefillCycles.cs) | Refill-cycle state and minimum useful delivery size |
+| [StorageIndex.cs](Source/StorageIndex.cs) | Stored-item membership and incoming ordinary-haul reservations |
+| [Patches.cs](Source/Patches.cs) | Core storage acceptance, haul/merge quantities and settings persistence |
+| [ReworkedDeliveries.cs](Source/ReworkedDeliveries.cs) | Serialized destination promises shared by the inventory-hauling adapters |
+| [PickUpAndHaulReworked.cs](Source/PickUpAndHaulReworked.cs) | Reworked planning, tally allocation and cargo APIs |
+| [InventoryHauling.cs](Source/InventoryHauling.cs) | Original/Continued pickup queues, unloading and ordinary inventory unloading |
+| [Main.cs](Source/Main.cs) | Initialization and optional integration selection |
 
-## Pick Up And Haul Reworked batches
+## Capacity and refill decisions
 
-Limited storage participates in Reworked's normal inventory batches. The adapter
-caps each cell allocation by compatible partial stacks, effective stack size,
-physical free slots and the storage-wide similar-stack allowance. New pickups
-use refill cycles; already collected cargo can use remaining space above the
-low mark. Reworked retains its source selection, mass allowance and routing.
+Capacity combines physical space, compatible partial stacks, the storage-wide similar-stack allowance and incoming deliveries.
+Refill cycles distinguish starting a new trip from depositing cargo already collected.
+Cycle state is lazy and runtime-only; settings and active inventory-delivery promises are serialized.
+Stored-item membership is invalidated by grid and storage-cell changes, while quantities are read live because other mods can change stack counts without notifications.
 
-The completed batch is checked for a useful delivery rather than rejecting each
-small source in isolation. Several fragments may meet the minimum together;
-urgent supplies, already carried cargo and other useful work in the same batch
-allow smaller accompanying refills. A lone tiny non-urgent refill is rejected.
+## Inventory hauling
 
-The adapter intercepts `StorageTally.Take`, allocating controlled destinations
-cell by cell and retaining promises on that tally. `ReserveCarriedCargo` identifies
-the owning batch before allocation starts. Several sources cannot each claim the
-same space, and several cells cannot each claim the last allowed similar stack.
-Native capacity calls in `HaulingWork.Storage` and `CellCapacity` are also capped, including acquisition rechecks and unloading. The merge-aware `CanHaul`
-overload caps the merge count before `TryPlanPickup` records its tally;
-`TryPlanPickup` then retains the destination promise. A core postfix on
-`WorkGiver_Merge.JobOnThing` limits native merge jobs, including Reworked's
-fallback and pending merge jobs. This avoids forcing a vanilla haul for each
-stack of light materials.
+Each adapter retains its hauling mod's source selection, mass allowance and job drivers while bounding allocations by controlled capacity.
+Planning keeps local allocations so sources and cells cannot independently claim the same space.
+Successful reservations commit destination promises, whose quantities are bounded by live queued pickups and owned cargo.
+Queries release cancelled, failed or lost deliveries, and direct deposits release completed quantities.
+Source identity preserves conservative accounting for stacks that cannot merge.
+Ordinary inventory unloading uses the same capacity rules without requiring cargo to have been collected by a hauling job.
 
-Successful batch reservations commit the planned destinations to a game
-component. Batch extensions replace the pawn's plan, including destinations for
-its already carried cargo. Queries bound promises by live pickup quantities and
-the public `GetHauledCount` API, distributing each item budget once across its
-destinations. Direct deposits release their destination quantities immediately.
-Failed pickups, cancellations, cargo loss and leaving the map release promises
-on the next query. Vanilla haulers also subtract these incoming quantities and
-stack slots. Turning off reserved-stack checking disables cross-pawn accounting;
-each batch still enforces its own limits.
+## Work and failure boundaries
 
-Promises serialize pawn, map, cell, item/material, source identity and quantity.
-Source references distinguish stacks that cannot merge. After a source is
-destroyed or its reference is unavailable, its promised stack space is counted
-conservatively rather than assuming compatibility with another stack. Live
-quantity budgets use item/material totals; this can temporarily withhold extra
-space for variants of the same item that cannot stack together. Promises from a
-save made with this adapter survive loading. Older saves have no destination
-records for batches already in progress: those jobs still receive acquisition
-and unloading caps, and their next newly planned batch starts promise tracking.
-There is no load-time colony scan or periodic work. Initial loading only restores
-the saved active plans. Each capacity query visits active planned destinations
-and matching pickup/cargo lists; planning additionally keeps a local allocation
-list. Work scales with active batches, their destinations and Reworked's existing
-source limits, rather than every item on the map.
-
-Optional integrations use separate Harmony owners. If installation throws,
-the loader removes that owner's patches and clears the Reworked API delegates;
-core storage patches and the loader remain usable. A diagnostic error identifies
-the unavailable integration. This contains startup failures; an unsupported
-Reworked version does not retain the adapter's batch-capacity guarantees.
-
-There is no initialization scan. Each controlled `Take` visits destination cells
-until the request is satisfied or the group is exhausted. Each visited cell uses
-the existing capacity calculation and its local promises; uncontrolled storage
-and containers retain Reworked's native tally. This adds no tick work or source
-search. Merge jobs also apply the existing refill/minimum-delivery checks.
-
-Inspected installed Reworked 1.7 on 2026-11-04, with public API contract 3
-and RimWorld `1.7.4998 rev1299`. The unchanged public API
-version does not guarantee stable internal planning methods. The current DLL
-removed `TryFindMergeTarget` and `BatchPickupPlan.Fill` and moved cargo ownership
-from `CargoState` to `CargoComp`.
-
-The headless runtime fixture exercises the actual patched `StorageTally.Take`
-and delivery capacity methods, group allocation, queued promises, failed pickups,
-cancellation, current cargo ownership and Scribe round trips. Merge helper checks
-cover remaining capacity and repeated allocations. An injected optional patch
-failure verifies partial-patch rollback while the core Storage tab patch remains.
-The small map has storage grids but no pathfinder: a fixture-only prefix passes
-no carrier to native cell acceptance checks, excluding reachability. It does not
-simulate a pawn walking a complete hauling route or render the Storage tab.
-The separate `hauling` suite uses a generated map and real pickup/unloading
-drivers; see the compatibility coverage below.
-
-## Pick Up and Haul - Continued
-
-Zzyxzz's continuation uses package ID `Zzyxzz.PickUpAndHaulReworked`, distinct
-from Dreadarm's Reworked. It shares the original PUAH `CapacityAt` adapter:
-controlled storage reports zero inventory capacity, causing its work giver to
-fall back to vanilla hauling. Refilled's core patches then cap that job's count
-and account for incoming deliveries. Off and uncontrolled cells retain native
-inventory capacity. The adapter adds no periodic work.
-
-Verified on RimWorld `1.7.5000 rev1275` with source-built Continued 0.4.1,
-[upstream commit b4e9834](https://github.com/Zzyxz/RimWorld-PickUpAndHaulContinued/commit/b4e9834060fd7f1daaf673979c62a86910fc1ca9).
-Only its project references were adapted to build against the installed game
-and Harmony; its gameplay source was unchanged. The Workshop binary itself was
-not used.
-
-The runtime suite checks adapter installation, controlled-cell rejection,
-threshold handling and unchanged Off/uncontrolled capacity. The separate
-`continued` suite runs a generated colony: a pawn batches two stacks into
-uncontrolled storage, then refills a controlled stack from 30 to 60 steel while
-a second pawn is prevented from reserving an overfilling delivery. It also checks
-that a waiting stack at 40 stays untouched with a 50% threshold. Both suites
-exit normally with Steam disabled and audio muted. This does not establish
-compatibility with other hauling add-ons or interrupted/save-loaded jobs.
-
-The original and Continued planner do not retain a destination-to-quantity plan
-through their separate pickup and unloading jobs. Replacing the zero-capacity
-fallback with a quantity cap alone would leave cross-pawn promises and unloading
-unprotected. Preserving their inventory batching for limited storage needs an
-adapter covering that lifecycle; Reworked's adapter depends on different APIs.
-
-## Compatibility coverage
-
-Checked on RimWorld `1.7.5000 rev1275` on 2026-11-10:
-
-| Dependency | Runtime used | Complete hauling checks |
-| --- | --- | --- |
-| Adaptive Storage Framework | Installed 1.6 Workshop binaries | Vanilla hauling; all three PUAH variants below |
-| Pick Up And Haul Reworked | Installed 1.7 Workshop binary, API contract 3 | Inventory batches into limited stockpiles, shelves and Adaptive Storage |
-| Original Pick Up And Haul | Installed 1.6 Workshop binary | Off batching; limited-storage fallback on all three storage types |
-| Zzyxzz's Pick Up and Haul - Continued | Source-built 0.4.1, commit b4e9834 above | Off batching; limited-storage fallback on all three storage types |
-
-The `hauling` suite exercises stockpiles, vanilla shelves and a shelf using the
-installed Adaptive Storage building class. It runs real pathfinding, reservations,
-pickup and unloading. It checks Off batching, steel refill thresholds and size
-limits, a competing pawn, and two-stack limits for cloth, hay and meals. Reworked
-must batch both allowed stacks in one trip rather than falling back to ordinary
-hauling. See BUILDING.md for commands and the fixture's limits.
-
-The original PUAH 1.6 Workshop binary loads on 1.7 and uses the same capacity
-adapter as Continued. Its capacity-patch installation, Off behavior and complete
-ordinary-hauling fallback are covered. The historical `Mlie.PickUpAndHaul` alias
-and Stockpile Ranking integrations are not covered by this matrix; they are not
-advertised in the player compatibility list.
-
-Adaptive Storage's 1.6 Workshop binaries are tested without rebuilding or changing
-their supported-version metadata. The fixture instantiates its actual building
-class, including adjustable slot limits. `StorageControls.Capacity` includes
-`CurrentSlotLimit` in its cache key: a two-cell shelf can change from six slots
-to five while its largest per-cell capacity stays three. Caching only that
-largest value leaves the Max similar slider stale.
-
-Selecting a storage parent resolves the optional capacity method and slot-limit
-property once. Drawing the slider reads the slot-limit property; a changed parent,
-cell count, largest cell capacity or slot limit recomputes capacity by visiting
-the parent's cells. This adds no map scan or periodic work.
-
-## Source and license
-
-Refilled is based on [Endag's KanbanStockpile Continued source](https://github.com/Endag/RimWorld-KanbanStockpile)
-at commit `ff8f8385a78c2d3a8f6ed105272f068253f52349`. That continuation derives
-from ubergarm's KanbanStockpile, with contributions from Tmq5521 and bananasss00.
-The repository retains the upstream history and MIT license; see LICENSE.
-Workshop links to both predecessors are in README.md and About/About.xml.
+There are no periodic callbacks or colony-wide initialization scans.
+Membership indexes rebuild after invalidation; capacity queries visit relevant stored items, reservations and active delivery plans, and planning visits candidate destinations.
+Small non-urgent ordinary refills may inspect nearby sources, while nearby unloading placement validates candidate cells against storage capacity.
+Optional adapters use separate Harmony owners; startup failure rolls back that adapter's patches and bindings while leaving core controls usable.

@@ -79,9 +79,13 @@ public sealed class HaulingChecks : GameComponent
     {
         for (int attempt = 0; attempt < 30; attempt++)
         {
-            var pawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+            var pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(PawnKindDefOf.Colonist, Faction.OfPlayer,
+                forceGenerateNewPawn: true, developmentalStages: DevelopmentalStage.Adult,
+                fixedBiologicalAge: 30, fixedChronologicalAge: 30));
             if (pawn.WorkTypeIsDisabled(WorkTypeDefOf.Hauling)) continue;
             pawn.inventory.innerContainer.ClearAndDestroyContents();
+            pawn.equipment.DestroyAllEquipment();
+            foreach (var apparel in pawn.apparel.WornApparel.ToList()) apparel.Destroy();
             pawn.workSettings.EnableAndInitialize();
             foreach (var work in DefDatabase<WorkTypeDef>.AllDefsListForReading)
                 if (!pawn.WorkTypeIsDisabled(work)) pawn.workSettings.SetPriority(work, work == WorkTypeDefOf.Hauling ? 1 : 0);
@@ -94,6 +98,13 @@ public sealed class HaulingChecks : GameComponent
     }
 
     int Count(ThingDef def) => storage.GetSlotGroup().HeldThings.Where(t => t.def == def).Sum(t => t.stackCount);
+    int Incoming(Thing thing)
+    {
+        var type = AccessTools.TypeByName("KanbanStockpile.ReworkedDeliveries");
+        var component = AccessTools.PropertyGetter(type, "Current").Invoke(null, null);
+        return (int)AccessTools.Method(type, "IncomingQuantity").Invoke(component,
+            new object[] { map, storage.GetSlotGroup().CellsList[0], thing, null });
+    }
     int Cargo(Pawn pawn)
     {
         int count = pawn.carryTracker.CarriedThing?.stackCount ?? 0;
@@ -231,6 +242,7 @@ public sealed class HaulingChecks : GameComponent
         {
             Require("Off keeps native inventory job", job.def.defName == batchName);
             Require("Off batches two sources", job.targetQueueA?.Count >= 2);
+            Require("Off plans both 20-steel stacks", job.countQueue.Sum() == 40);
         }
         Start(job);
         phase = 1;
@@ -250,23 +262,38 @@ public sealed class HaulingChecks : GameComponent
         stored.stackCount = 30;
         Job job = Job(first, source);
         Require("threshold offers a refill", job != null);
-        if (reworked)
+        if (batchName != null)
         {
-            Require("limited storage keeps Reworked inventory batching", job.def.defName == batchName);
+            Require("limited storage keeps native inventory batching", job.def.defName == batchName);
             Require("two sources share the remaining 30 capacity", job.targetQueueA.Count >= 2 && job.countQueue.Sum() == 30);
         }
         else Require("ordinary refill count is capped", job.count <= 30);
         Start(job);
         var competing = Job(second, other);
-        Require("competing pawn cannot overfill committed capacity", competing == null || !reworked && competing.count <= 15);
+        Require("competing pawn cannot overfill committed capacity", competing == null || batchName == null && competing.count <= 15);
+        if (batchName != null)
+        {
+            Require("batch commits the 30 incoming steel before pickup", Incoming(source) == 30);
+            Require("ordinary haulers also respect the committed batch",
+                new WorkGiver_HaulGeneral().JobOnThing(second, other, true) == null);
+            first.drafter.Drafted = true;
+            first.jobs.StopAll();
+            Require("cancelling an uncollected batch releases its promises", Incoming(source) == 0);
+            job = Job(first, source);
+            Require("cancelled space is available to another inventory batch", job?.def.defName == batchName && job.countQueue.Sum() == 30);
+            Start(job);
+        }
         phase = 2;
     }
 
     void BeginStacks()
     {
         if (phase == 2)
+        {
             Require("refill finishes at exactly 60 in one similar stack", Count(ThingDefOf.Steel) == 60
                 && storage.GetSlotGroup().HeldThings.Count(t => t.def == ThingDefOf.Steel) == 1);
+            if (batchName != null) Require("completed refill releases all destination promises", Incoming(other) == 0);
+        }
         Reset();
         Configure(100, 2, 0);
         source = Source(Material, 0, Material.stackLimit);
@@ -274,11 +301,20 @@ public sealed class HaulingChecks : GameComponent
         Source(Material, 4, Material.stackLimit);
         var job = Job(first, source);
         Require(Material.defName + " two-stack limit offers a job", job != null);
-        if (reworked)
-            Require("Reworked batches two " + Material.defName + " stacks in one trip", job.def.defName == batchName
+        if (batchName != null)
+            Require("native inventory hauling batches two " + Material.defName + " stacks in one trip", job.def.defName == batchName
                 && job.targetQueueA.Count >= 2 && job.countQueue.Sum() == Material.stackLimit * 2);
         Start(job);
         phase = 3;
+    }
+
+    void FinishStorage()
+    {
+        materialIndex = 0;
+        Reset();
+        if (storage is Zone zone) zone.Delete(); else ((Thing)storage).Destroy();
+        if (++storageKind < (adaptive != null ? 3 : 2)) BeginStorage();
+        else { finished = true; Diagnostics.HaulingFinished(); }
     }
 
     public override void GameComponentTick()
@@ -291,8 +327,13 @@ public sealed class HaulingChecks : GameComponent
             // Keep eating from consuming the meal stacks being measured.
             if (first.needs?.food != null) first.needs.food.CurLevelPercentage = 1f;
             if (second.needs?.food != null) second.needs.food.CurLevelPercentage = 1f;
+            if (first.needs?.mood != null) first.needs.mood.CurLevelPercentage = 1f;
+            if (second.needs?.mood != null) second.needs.mood.CurLevelPercentage = 1f;
             if (ticks - started > 10000) throw new TimeoutException($"Phase {phase}, steel={Count(ThingDefOf.Steel)}, material={Material}:{Count(Material)}, cargo={Cargo(first)}, inventory={string.Join(",", first.inventory.innerContainer.Select(t => t.ToString()))}, carried={first.carryTracker.CarriedThing}, job={first.CurJob}");
-            if (phase == 2 && Count(ThingDefOf.Steel) > 60) throw new InvalidOperationException("Overfilled steel");
+            if (phase == 2 && Count(ThingDefOf.Steel) > 60)
+                throw new InvalidOperationException($"Overfilled steel: {Count(ThingDefOf.Steel)}, job={first.CurJob}, cargo={Cargo(first)}");
+            if (phase == 2 && batchName != null && Count(ThingDefOf.Steel) + Incoming(other) > 60)
+                throw new InvalidOperationException("Batch promises count delivered cargo twice");
             if (phase == 3 && (Count(Material) > Material.stackLimit * 2 || storage.GetSlotGroup().HeldThings.Count(t => t.def == Material) > 2))
                 throw new InvalidOperationException("Exceeded similar-stack limit");
             int expected = phase == 1 ? 40 : phase == 2 ? 60 : Material.stackLimit * 2;
@@ -301,15 +342,11 @@ public sealed class HaulingChecks : GameComponent
             if (++settled < 120) return;
             if (phase == 1) BeginLimited();
             else if (phase == 2) BeginStacks();
-            else
+            else if (phase == 3)
             {
                 Require(Material.defName + " two-stack limit survives completed hauling", true);
                 if (++materialIndex < materials.Length) { BeginStacks(); return; }
-                materialIndex = 0;
-                Reset();
-                if (storage is Zone zone) zone.Delete(); else ((Thing)storage).Destroy();
-                if (++storageKind < (adaptive != null ? 3 : 2)) BeginStorage();
-                else { finished = true; Diagnostics.HaulingFinished(); }
+                FinishStorage();
             }
         }
         catch (Exception ex)

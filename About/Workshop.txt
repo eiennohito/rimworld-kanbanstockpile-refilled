@@ -1,0 +1,31 @@
+Keep supplies where pawns need them without filling every shelf or hauling another handful after each use.
+
+KanbanStockpile-Refilled lets you set how many stacks of each item a stockpile or shelf holds, choose a smaller stack size, and wait until supplies run low before refilling.
+
+[h2]A small supply, replenished when needed[/h2]
+Set a steel stack to 60 and Refill From to 50%: pawns start refilling at 30 steel or fewer, then continue above that threshold while skipping small final top-ups.
+Deliveries already on their way count toward the limit.
+
+Open the Storage tab to choose Max similar, Refill Until and Refill From.
+Set Max similar to Off wherever you want normal hauling.
+
+[h2]Keep your hauling workflow[/h2]
+Works with stockpiles, vanilla shelves and Adaptive Storage.
+With Pick Up And Haul, Pick Up and Haul - Continued by Zzyxzz, or Pick Up And Haul Reworked, pawns can bring several stacks to limited storage in one trip, including food, hay and cloth.
+Items brought back in a pawn's inventory also respect storage limits.
+Construction deliveries are unchanged.
+
+[h2]Requirements and existing saves[/h2]
+Requires RimWorld 1.7 and Harmony.
+Enable Refilled in place of KanbanStockpile or KanbanStockpile Continued; saved storage settings carry over.
+After loading a save, a partly filled stack may refill once before resuming the chosen threshold.
+Multiplayer is not supported.
+
+[h2]Credits and source[/h2]
+Continues KanbanStockpile Continued by Endag:
+https://steamcommunity.com/sharedfiles/filedetails/?id=3767756434
+Based on KanbanStockpile by ubergarm:
+https://steamcommunity.com/sharedfiles/filedetails/?id=2287142613
+Original contributions by ubergarm, Endag, Tmq5521 and bananasss00; maintained by eiennohito.
+Source code and MIT license:
+https://github.com/eiennohito/rimworld-kanbanstockpile-refilled

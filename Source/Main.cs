@@ -28,8 +28,8 @@ namespace KanbanStockpile
                 || Loaded("Zzyxzz.PickUpAndHaulReworked"))
             {
                 IsPickUpAndHaulLoaded = TryApplyIntegration(
-                    new Harmony(harmony.Id + ".puah"), PickUpAndHaul_WorkGiver_HaulToInventory_Patch.ApplyPatch,
-                    ex => Log.Error("[KanbanStockpile] Pick Up And Haul integration disabled: " + ex));
+                    new Harmony(harmony.Id + ".puah"), InventoryHauling.ApplyPatch,
+                    ex => { InventoryHauling.Reset(); Log.Error("[KanbanStockpile] Pick Up And Haul integration disabled: " + ex); });
             }
         }
 

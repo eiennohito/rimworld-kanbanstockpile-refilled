@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using HarmonyLib;
 using Verse;
@@ -70,6 +71,17 @@ namespace KanbanStockpile
 
         public bool Tracks(Pawn pawn) => plans.Exists(p => p.pawn == pawn);
 
+        internal List<PlannedDelivery> ForPawn(Pawn pawn)
+        {
+            Incoming(pawn.MapHeld, null);
+            var plan = plans.Find(p => p.pawn == pawn);
+            return plan == null ? new List<PlannedDelivery>() : plan.deliveries.Select(d => new PlannedDelivery
+            {
+                map = d.map, cell = d.cell, def = d.def, stuff = d.stuff,
+                source = d.source, sourceId = d.sourceId, count = d.count
+            }).ToList();
+        }
+
         public int IncomingQuantity(Map map, IntVec3 cell, Thing thing, Pawn exclude)
         {
             long count = 0;
@@ -106,7 +118,8 @@ namespace KanbanStockpile
         {
             if (!PickUpAndHaulReworked.IsBatchJob(job)) return 0;
             long count = 0;
-            if (job.targetA.Thing is Thing source && delivery.Matches(source) && source.Spawned)
+            if (job.targetA.Thing is Thing source && delivery.Matches(source) && source.Spawned
+                && (job.targetQueueA == null || !job.targetQueueA.Contains(job.targetA)))
                 count += Math.Min(Math.Max(0, job.count), source.stackCount);
             if (job.targetQueueA != null && job.countQueue != null)
                 for (int i = 0; i < Math.Min(job.targetQueueA.Count, job.countQueue.Count); i++)

@@ -25,7 +25,7 @@ public sealed class ContinuedSimulation : GameComponent
     Map map;
     Zone_Stockpile stockpile;
     Pawn first, second;
-    Thing source, otherSource, stored;
+    Thing source, otherSource, stored, raidCargo;
     WorkGiver_Scanner giver;
     int phase, ticks, phaseStarted, settled;
     bool finished;
@@ -133,13 +133,38 @@ public sealed class ContinuedSimulation : GameComponent
         Require("A waiting controlled stack above 50% stays untouched", giver.JobOnThing(first, source, true) == null);
         stored.stackCount = 30;
         Job job = giver.JobOnThing(first, source, true);
-        Require("At the threshold Continued falls back to ordinary hauling", job?.def == JobDefOf.HaulToCell);
-        Require("The ordinary job carries only the missing 30 steel", job.count == 30);
+        Require("At the threshold Continued keeps inventory hauling", job?.def.defName == "HaulToInventory");
+        Require("The inventory job carries only the missing 30 steel", job.countQueue.Sum() == 30);
         first.jobs.StartJob(job, JobCondition.InterruptForced);
         Job competing = giver.JobOnThing(second, otherSource, true);
         Require("A second pawn cannot reserve an overfilling delivery", competing == null);
         phase = 2;
         phaseStarted = ticks;
+    }
+
+    void BeginInventoryUnload()
+    {
+        first.drafter.Drafted = true;
+        second.drafter.Drafted = true;
+        first.jobs.StopAll();
+        second.jobs.StopAll();
+        foreach (var thing in stockpile.GetSlotGroup().HeldThings.ToList()) thing.Destroy();
+        if (!source.Destroyed) source.Destroy();
+        if (!otherSource.Destroyed) otherSource.Destroy();
+        Configure(100, 1, 60);
+        raidCargo = ThingMaker.MakeThing(ThingDefOf.Steel);
+        raidCargo.stackCount = 75;
+        first.inventory.innerContainer.TryAdd(raidCargo, false);
+        var comp = first.AllComps.Single(c => c.GetType().FullName == "PickUpAndHaul.CompHauledToInventory");
+        var marked = (System.Collections.Generic.HashSet<Thing>)AccessTools.Method(comp.GetType(), "GetHashSet").Invoke(comp, null);
+        marked.Clear();
+        Require("returning cargo is untracked inventory", !marked.Contains(raidCargo));
+        first.inventory.UnloadEverything = true;
+        first.drafter.Drafted = false;
+        first.jobs.StartJob(JobMaker.MakeJob(JobDefOf.UnloadYourInventory), JobCondition.InterruptForced);
+        phase = 3;
+        phaseStarted = ticks;
+        settled = 0;
     }
 
     public override void GameComponentTick()
@@ -160,6 +185,16 @@ public sealed class ContinuedSimulation : GameComponent
                     Require("Limited hauling completes at 60 steel without inventory cargo", true);
                     Require("Controlled storage still has only one similar stack",
                         stockpile.GetSlotGroup().HeldThings.Count(t => t.def == ThingDefOf.Steel) == 1);
+                    BeginInventoryUnload();
+                }
+            }
+            else if (phase == 3)
+            {
+                RequireNoOverfill();
+                if (StoredCount() == 60 && PawnSteel(first) == 0 && ++settled >= 120)
+                {
+                    Require("ordinary inventory unloading respects the 60-steel limit", true);
+                    Require("excess returning cargo survives on the ground", raidCargo.Spawned && raidCargo.stackCount == 15);
                     finished = true;
                     Diagnostics.ScenarioFinished();
                 }
@@ -171,5 +206,10 @@ public sealed class ContinuedSimulation : GameComponent
             Diagnostics.Results.Add(new { name = "Continued live hauling scenario", pass = false, error = ex.ToString() });
             Diagnostics.ScenarioFinished();
         }
+    }
+
+    void RequireNoOverfill()
+    {
+        if (StoredCount() > 60) throw new InvalidOperationException("Ordinary inventory unloading overfilled limited storage");
     }
 }
